@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>F1ライン分析</title>
+<style>
+:root{
+  --bg:#f3f4f1; --panel:#ffffff; --ink:#1b1f1d; --muted:#626b66; --line:#d9ddd8;
+  --accent:#0d6b4f; --accent-soft:#e1efe9; --hot:#c2410c; --hot-soft:#fbe9df; --warn:#a16207;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+  --f-num:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#121614; --panel:#1b201e; --ink:#e7ebe8; --muted:#9aa39e; --line:#2e3532;
+  --accent:#4cc49a; --accent-soft:#163a2e; --hot:#fb8a50; --hot-soft:#3d2216; --warn:#e0b44a; color-scheme:dark}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55;padding-top:env(safe-area-inset-top,0px)}
+.phone{max-width:480px;margin:0 auto;padding:12px max(12px,env(safe-area-inset-right,0px)) 90px max(12px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:10px}
+header{display:flex;align-items:baseline;gap:8px}
+h1{font-size:1.15rem;margin:0}
+h2{font-size:.95rem;margin:0}
+.muted{color:var(--muted);font-size:.78rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.tabs{display:flex;gap:6px}
+.tabs button{flex:1;padding:7px 0;border-radius:8px;border:1px solid var(--line);font:inherit;font-weight:700;color:var(--muted);background:var(--panel)}
+.tabs button.on{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+.scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.pill{flex:none;padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--panel);font:inherit;font-weight:700;font-size:.85rem;white-space:nowrap;color:var(--ink)}
+.pill small{color:var(--muted);font-weight:400;margin-left:4px}
+.pill.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.rgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.rgrid button{padding:6px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel);font:inherit;font-weight:700;font-size:.85rem;color:var(--ink)}
+.rgrid button.on{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:.72rem;padding:1px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:700}
+.chip.hot{background:var(--hot-soft);color:var(--hot)}
+.car{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:4px;font-family:var(--f-num);font-weight:700;border:1px solid #9995;font-size:.9rem}
+.car.lg{min-width:30px;height:30px;font-size:1.05rem}
+.car.xs{min-width:17px;height:17px;font-size:.7rem;border-radius:3px}
+.k1{background:#fff;color:#111}.k2{background:#111;color:#fff}.k3{background:#d62828;color:#fff}.k4{background:#1d4ed8;color:#fff}.k5{background:#facc15;color:#111}.k6{background:#15803d;color:#fff}.k7{background:#f97316;color:#111}.k8{background:#ec4899;color:#111}.k9{background:#7e22ce;color:#fff}
+.lines{display:flex;gap:6px;flex-wrap:wrap}
+.ln{flex:1 1 0;min-width:0;border:2px solid var(--line);border-radius:8px;padding:6px 3px;background:var(--bg);display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;font:inherit;color:var(--ink)}
+.ln.s{border-color:var(--accent);background:var(--accent-soft)}
+.ln .cars{display:flex;gap:2px;justify-content:center}
+.rd{display:flex;flex-direction:column;align-items:center;font-size:.62rem;line-height:1.2;width:36px;text-align:center}
+.rd .mk{color:var(--hot);font-weight:700;font-size:.75rem;min-height:1em}
+.rd .nm{font-weight:700;word-break:keep-all;overflow-wrap:anywhere}
+.rd .low{color:var(--warn);font-weight:700}
+.stag{font-size:.7rem;font-weight:700;color:var(--accent);min-height:1em}
+.hint{font-size:.72rem;color:var(--muted);text-align:center}
+.seg{display:flex;border:1px solid var(--accent);border-radius:8px;overflow:hidden}
+.seg button{flex:1;padding:6px 0;color:var(--accent);font:inherit;font-weight:700;font-size:.8rem;background:transparent;border:0}
+.seg button.on{background:var(--accent);color:var(--panel)}
+.kpi{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi div{border-left:3px solid var(--accent);padding:2px 8px}
+.kpi div.hot{border-color:var(--hot)}
+.kpi b{display:block;font-family:var(--f-num);font-size:1.15rem}
+.kpi span{font-size:.7rem;color:var(--muted)}
+.pat{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-top:1px solid var(--line)}
+.pat:first-of-type{border-top:0}
+.pat .top{display:flex;align-items:center;gap:8px}
+.combo{display:inline-flex;align-items:center;gap:2px}
+.combo i{font-style:normal;color:var(--muted)}
+.pat .num{margin-left:auto;text-align:right;font-family:var(--f-num);font-size:.8rem;line-height:1.3}
+.pat .num b{font-size:.95rem}
+.pat .txt{font-size:.78rem}
+.lk{font-size:.72rem}
+.lk a{color:var(--accent);margin-right:8px;font-weight:700}
+.hot-t{color:var(--hot)}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:.78rem}
+th,td{padding:5px 4px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:.66rem;color:var(--muted)}
+td.n{text-align:right;font-family:var(--f-num)}
+tr.bk td{background:var(--accent-soft);font-weight:700}
+.up{color:var(--accent);font-weight:700}.down{color:var(--hot);font-weight:700}
+.hist{display:flex;flex-direction:column}
+.hrow{display:grid;grid-template-columns:1fr auto;grid-template-areas:"d r" "l r";gap:2px 8px;padding:7px 0;border-top:1px solid var(--line);color:var(--ink);text-decoration:none}
+.hrow:first-child{border-top:0}
+.hd{grid-area:d;font-weight:700;font-size:.8rem;color:var(--accent)}
+.hd small{color:var(--muted);font-weight:400;margin-left:6px}
+.hl{grid-area:l;display:flex;gap:1px;align-items:center;flex-wrap:wrap}
+.hl .gap{width:6px}
+.hr{grid-area:r;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px;font-family:var(--f-num);font-size:.82rem}
+select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 6px}
+.frow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.frow label{font-size:.75rem;color:var(--muted);font-weight:700}
+.empty{padding:20px;text-align:center;color:var(--muted)}
+.bottom{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px)}
+.bottom div{max-width:480px;flex:1;display:flex}
+.bottom a{flex:1;text-align:center;padding:12px 0;font-weight:700;color:var(--muted);font-size:.88rem;text-decoration:none}
+.bottom a.on{color:var(--accent)}
+section[hidden]{display:none!important}
+section{display:flex;flex-direction:column;gap:10px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <header><h1>F1ライン分析</h1><span class="muted" id="upd"></span></header>
+
+  <section id="today">
+    <div class="tabs" id="days"></div>
+    <div class="scroll" id="venues"></div>
+    <div class="rgrid" id="races"></div>
+    <div id="race"></div>
+  </section>
+
+  <section id="trend" hidden>
+    <div class="card">
+      <div class="frow"><label for="tr-bank">周長</label><select id="tr-bank"><option>すべて</option><option>333m</option><option>400m</option><option>500m</option></select>
+        <label for="tr-cls">級</label><select id="tr-cls"><option>男子</option><option>S級</option><option>A級</option></select></div>
+      <div class="muted" id="tr-sum"></div>
+    </div>
+    <div id="tr-body"></div>
+  </section>
+
+  <section id="venue" hidden>
+    <div class="card">
+      <div class="frow"><label for="vn-cls">級</label><select id="vn-cls"><option>男子</option><option>S級</option><option>A級</option></select></div>
+      <div class="muted">7車立て。各場はその周長の平均との差が±8ポイント以上で色付け。30レース未満は参考値。</div>
+    </div>
+    <div class="card"><div class="tw"><table id="vn-table"></table></div></div>
+  </section>
+</div>
+<nav class="bottom"><div><a href="#today">当日予想</a><a href="#trend">傾向</a><a href="#venue">競輪場</a></div></nav>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const yen=v=>v==null?"—":Number(v).toLocaleString()+"円";
+const pc=v=>v==null?"—":Math.round(v)+"%";
+const car=(c,sz="")=>`<span class="car ${sz} k${c}">${c}</span>`;
+const comboHTML=(s,sz="lg")=>`<span class="combo">${String(s).split("-").map(c=>car(c,sz)).join("<i>-</i>")}</span>`;
+const linesHTML=s=>String(s).split(" ").map(g=>[...g].map(c=>car(c,"xs")).join("")).join('<span class="gap"></span>');
+const store={get(k,d){try{return JSON.parse(localStorage.getItem("f1:"+k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem("f1:"+k,JSON.stringify(v))}catch(e){}}};
+async function getJSON(u){const r=await fetch(u+"?t="+Date.now());if(!r.ok)throw new Error(r.status);return r.json()}
+
+let META=null, DAYS={}, TREND=null;
+const st={day:0,venue:0,race:0,s:"n",scope:null};
+
+/* ---------- 画面切替 ---------- */
+const VIEWS=["today","trend","venue"];
+function route(){const h=location.hash.slice(1);const v=VIEWS.includes(h)?h:"today";
+  VIEWS.forEach(x=>$("#"+x).hidden=x!==v);
+  document.querySelectorAll(".bottom a").forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#"+v));
+  if(v==="trend")showTrend(); if(v==="venue")showVenue(); window.scrollTo(0,0);}
+addEventListener("hashchange",route);
+
+/* ---------- 当日予想 ---------- */
+async function loadDay(i){const d=META.days[i];if(!DAYS[d])DAYS[d]=await getJSON(`data/day-${d}.json`);return DAYS[d]}
+function dayLabel(d,i){const [y,m,dd]=d.split("-");return `${i===0?"今日":i===1?"明日":""} ${+m}/${+dd}`}
+async function showToday(){
+  $("#days").innerHTML=META.days.map((d,i)=>`<button class="${i===st.day?"on":""}" data-i="${i}">${dayLabel(d,i)}</button>`).join("");
+  let D;try{D=await loadDay(st.day)}catch(e){$("#race").innerHTML=`<div class="card empty">データを読み込めませんでした</div>`;return}
+  if(!D.venues.length){$("#venues").innerHTML="";$("#races").innerHTML="";$("#race").innerHTML=`<div class="card empty">この日のF1開催はありません（または出走表がまだ出ていません）</div>`;return}
+  if(st.venue>=D.venues.length)st.venue=0;
+  $("#venues").innerHTML=D.venues.map((v,i)=>`<button class="pill ${i===st.venue?"on":""}" data-i="${i}">${esc(v.venue)}<small>${v.bank.replace("m","")}</small></button>`).join("");
+  const V=D.venues[st.venue];
+  if(st.race>=V.races.length)st.race=0;
+  $("#races").innerHTML=V.races.map((r,i)=>`<button class="${i===st.race?"on":""}" data-i="${i}">${r.no}R</button>`).join("");
+  showRace(D,V,V.races[st.race]);
+  store.set("pos",{day:META.days[st.day],venue:V.venue,race:st.race});
+}
+$("#days").onclick=e=>{const b=e.target.closest("button");if(!b)return;st.day=+b.dataset.i;st.venue=0;st.race=0;st.s="n";st.scope=null;showToday()};
+$("#venues").onclick=e=>{const b=e.target.closest("button");if(!b)return;st.venue=+b.dataset.i;st.race=0;st.s="n";st.scope=null;showToday()};
+$("#races").onclick=e=>{const b=e.target.closest("button");if(!b)return;st.race=+b.dataset.i;st.s="n";st.scope=null;showToday()};
+
+function showRace(D,V,R){
+  const RD=Object.fromEntries(R.riders.map(r=>[r.car,r]));
+  const scores=R.riders.map(r=>r.score).filter(Boolean);const low=scores.length?Math.min(...scores):null;
+  const shape=R.lines.map(l=>l.length).sort((a,b)=>b-a).join("-");
+  const sIdx=st.s==="n"?null:+st.s;
+  let h=`<div class="card">
+    <div style="display:flex;align-items:baseline;gap:8px"><h2>${esc(V.venue)} ${R.no}R ${esc(R.cat)}</h2><a class="muted" href="${R.url}" target="_blank" rel="noopener" style="margin-left:auto;color:var(--accent)">出走表</a></div>
+    <div class="chips"><span class="chip">${V.bank}</span><span class="chip">${esc(R.cls)}</span>${R.lines.length?`<span class="chip">${shape}</span>`:""}${low?`<span class="chip hot">最低得点 ${R.riders.filter(r=>r.score===low).map(r=>r.car+"番").join("")}</span>`:""}</div>`;
+  if(R.lines.length){
+    h+=`<div class="lines">${R.lines.map((l,i)=>`<button class="ln ${sIdx===i?"s":""}" data-i="${i}"><div class="cars">${l.map(c=>{const r=RD[c]||{};return `<div class="rd"><span class="mk">${esc(r.mark||"")}</span>${car(c)}<span class="nm">${esc((r.name||"").split(/\s/)[0])}</span><span class="${r.score===low?"low":""}">${r.score??""}</span></div>`}).join("")}</div><span class="stag">${sIdx===i?"S":""}</span></button>`).join("")}</div>
+      <div class="hint">ラインをタップしてSを切り替え（もう一度タップで解除）</div>`;
+  }
+  if(!R.res){h+=`<div class="empty">${R.cls==="ガールズ"?"ガールズは分析の対象外です":"並び予想がまだ出ていません"}</div></div>`;$("#race").innerHTML=h;bindRace(D,V,R);return}
+  const res=R.res[st.s]||R.res.n;
+  if(!st.scope||!res.scopes[st.scope])st.scope=res.default;
+  const a=res.scopes[st.scope];
+  h+=`<div class="seg">${["bank","venue","all"].filter(k=>res.scopes[k]).map(k=>`<button data-k="${k}" class="${k===st.scope?"on":""}">${esc(res.scopes[k].name)} ${res.scopes[k].n}件</button>`).join("")}</div>`;
+  if(!a.n){h+=`<div class="empty">この範囲には同じ型の過去レースがありません</div></div>`;$("#race").innerHTML=h;bindRace(D,V,R);return}
+  const k=a.kimarite||{};
+  h+=`<div class="kpi">
+      <div><span>3連単 中央値</span><b>${yen(a.tri_med)}</b></div>
+      <div class="hot"><span>万車券率</span><b>${pc(a.manken)}</b></div>
+      <div><span>Sライン突っ張り</span><b>${pc(a.tsuppari)}</b></div>
+      <div><span>決まり手</span><b style="font-size:.85rem">逃${pc(k["逃"])} 捲${pc(k["捲"])} 差${pc(k["差"])}</b></div></div>
+    <div class="muted">照合：${esc(a.level)}・${esc(R.cls)}のみ${sIdx==null?"（Sは指定なし）":""}</div></div>`;
+  const ref=id=>D.refs[id];
+  const patRows=(rows,hot)=>rows.map(t=>`<div class="pat"><div class="top">${comboHTML(t.c)}<div class="num"><b>${t.n}件</b><br><span class="${(hot||t.m>=10000)?"hot-t":""}">${hot?"最高 "+yen(t.x):"中央値 "+yen(t.m)}</span></div></div>
+      <div class="txt">${esc(t.p)}</div><div class="lk">${t.r.map(id=>{const x=ref(id);return x?`<a href="${x[2]}" target="_blank" rel="noopener">${esc(x[0])}</a>`:""}).join("")}${t.n>t.r.length?`<span class="muted">他${t.n-t.r.length}件</span>`:""}</div></div>`).join("");
+  h+=`<div class="card"><h2>多い着順（当日の車番）</h2>${a.tri.length?patRows(a.tri):`<div class="muted">当日の車番に置き換えられる着順がありません</div>`}
+      <div class="muted">過去レースの1〜3着を「どのラインの何番手か」に直して置き換え（${a.n_conv}/${a.n}件）</div></div>`;
+  h+=`<div class="card"><h2>ラインごとの成績</h2><table><thead><tr><th>ライン</th><th>1着</th><th>3着内</th><th>主導権</th></tr></thead><tbody>
+      ${R.lines.map((l,i)=>`<tr><td>${l.map(c=>car(c)).join("")}${sIdx===i?" S":""}</td><td class="n">${pc(a.lines[i]?.win)}</td><td class="n">${pc(a.lines[i]?.top3)}</td><td class="n">${pc(a.lines[i]?.lead)}</td></tr>`).join("")}
+      </tbody></table>
+      ${a.exacta.length?`<h2 style="margin-top:4px">2車単の参考</h2><table><tbody>${a.exacta.map(x=>`<tr><td>${comboHTML(x[0],"")}</td><td class="n">${x[1]}件</td><td class="n">3連単中央値 ${yen(x[2])}</td></tr>`).join("")}</tbody></table>`:""}</div>`;
+  h+=`<div class="card"><h2>万車券になったときの着順</h2>${a.manken_tri.length?patRows(a.manken_tri,true):`<div class="muted">万車券はありませんでした</div>`}</div>`;
+  h+=`<div class="card"><div style="display:flex;align-items:baseline;gap:8px"><h2>該当レース（直近${a.races.length}レース）</h2><span class="muted" style="margin-left:auto">新しい順</span></div>
+    <div class="hist">${a.races.map(id=>{const x=ref(id);if(!x)return "";return `<a class="hrow" href="${x[2]}" target="_blank" rel="noopener"><span class="hd">${esc(x[0])}<small>${esc(x[1])}</small></span><span class="hl">${linesHTML(x[3])}</span><span class="hr">${x[4]?comboHTML(x[4],"xs"):""}<b class="${x[5]>=10000?"hot-t":""}">${yen(x[5])}</b></span></a>`}).join("")}</div></div>`;
+  $("#race").innerHTML=h;bindRace(D,V,R);
+}
+function bindRace(D,V,R){
+  document.querySelectorAll("#race .ln").forEach(b=>b.onclick=()=>{const i=b.dataset.i;st.s=st.s===i?"n":i;showRace(D,V,R)});
+  document.querySelectorAll("#race .seg button").forEach(b=>b.onclick=()=>{st.scope=b.dataset.k;showRace(D,V,R)});
+}
+
+/* ---------- 傾向 ---------- */
+async function showTrend(){
+  if(!TREND){$("#tr-body").innerHTML=`<div class="card empty">読み込み中…</div>`;TREND=await getJSON("data/trend.json")}
+  const s=TREND.stats[`${$("#tr-bank").value}|${$("#tr-cls").value}`];
+  store.set("trend",{bank:$("#tr-bank").value,cls:$("#tr-cls").value});
+  if(!s||!s.summary.n){$("#tr-sum").textContent="";$("#tr-body").innerHTML=`<div class="card empty">データがありません</div>`;return}
+  $("#tr-sum").textContent=`${s.summary.n.toLocaleString()}レース（7車立て）　万車券率 ${pc(s.summary.manken)}　3連単中央値 ${yen(s.summary.tri_med)}`;
+  const tbl=(head,rows)=>`<div class="tw"><table><thead><tr>${head.map(x=>`<th>${x}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+  const tr=cells=>`<tr>${cells.map((c,i)=>`<td class="${i&&typeof c!=="string"||/円|%|^—$/.test(String(c))?"n":""}">${c}</td>`).join("")}</tr>`;
+  let h=`<div class="card"><h2>Sを取ったラインと結果</h2>${tbl(["区分","Sライン","件数","1着","3着内","突っ張り","万車券","3連単中央値"],
+      s.s_table.map(r=>tr([esc(r.type),esc(r.s),r.n,pc(r.win),pc(r.top3),pc(r.tsuppari),pc(r.manken),yen(r.tri_med)])))}</div>`;
+  h+=`<div class="card"><h2>予想印 ◎・○ のライン</h2>${tbl(["","件数","1着","2着内","3着内","全員4着以下","その時の3連単平均"],
+      Object.entries(s.marks).filter(([k,v])=>v).map(([k,v])=>tr([k,v.n,pc(v.win),pc(v.top2),pc(v.top3),pc(v.dead),yen(v.dead_tri)])))}
+      ${tbl(["◎ラインとS","件数","◎ライン1着","3着内","万車券","3連単中央値"],s.hon_by_s.map(r=>tr([r.case,r.n,pc(r.win),pc(r.top3),pc(r.manken),yen(r.tri_med)])))}</div>`;
+  const rp=(t,rows)=>`<div class="card"><h2>${t}</h2>${tbl(["位置","件数","1着","3着内","3着内時の3連単平均"],rows.map(r=>tr([esc(r.case),r.n,pc(r.win),pc(r.top3),yen(r.tri_hit)])))}</div>`;
+  h+=rp("⑥（6番車）の着順",s.six)+rp("競走得点が一番低い選手の着順",s.lowest);
+  h+=`<div class="card"><h2>決まり手（1着）</h2>${tbl(["区分","件数","逃","捲","差","マ"],s.kimarite.map(r=>tr([esc(r.type),r.n,pc(r["逃"]),pc(r["捲"]),pc(r["差"]),pc(r["マ"])])))}</div>`;
+  h+=`<div class="card"><h2>番組 × ライン区分</h2>${tbl(["番組","区分","件数","突っ張り","万車券","3連単中央値"],s.by_category.map(r=>tr([esc(r.category),esc(r.type),r.n,pc(r.tsuppari),pc(r.manken),yen(r.tri_med)])))}</div>`;
+  $("#tr-body").innerHTML=h;
+}
+$("#tr-bank").onchange=showTrend;$("#tr-cls").onchange=showTrend;
+
+/* ---------- 競輪場 ---------- */
+async function showVenue(){
+  if(!TREND)TREND=await getJSON("data/trend.json");
+  const v=TREND.venues[$("#vn-cls").value];store.set("vcls",$("#vn-cls").value);
+  const cols=[["s_top3","S3着内"],["tsuppari","突っ張"],["nige","逃"],["makuri","捲"],["sashi","差"],["hon_win","◎1着"],["manken","万車券"]];
+  const cell=(r,k,T)=>{if(r[k]==null)return `<td class="n">—</td>`;const d=T[k]==null?0:r[k]-T[k];return `<td class="n"><span class="${Math.abs(d)>=8?(d>0?"up":"down"):""}">${pc(r[k])}</span></td>`};
+  const tot=(n,T,c)=>`<tr class="${c}"><td>${n}</td><td class="n">${T.n}</td>${cols.map(x=>`<td class="n">${pc(T[x[0]])}</td>`).join("")}<td class="n">${yen(T.tri_med)}</td></tr>`;
+  $("#vn-table").innerHTML=`<thead><tr><th>競輪場</th><th>件数</th>${cols.map(c=>`<th>${c[1]}</th>`).join("")}<th>3連単中央値</th></tr></thead><tbody>
+    ${tot("全場",v.total,"")}${v.groups.map(g=>tot(g.bank+" 平均",g.total,"bk")+g.rows.map(r=>`<tr${r.n<30?' class="muted"':''}><td>${esc(r.venue)}</td><td class="n">${r.n}</td>${cols.map(c=>cell(r,c[0],g.total)).join("")}<td class="n">${yen(r.tri_med)}</td></tr>`).join("")).join("")}</tbody>`;
+}
+$("#vn-cls").onchange=showVenue;
+
+/* ---------- 起動 ---------- */
+(async()=>{
+  try{META=await getJSON("data/meta.json")}catch(e){$("#race").innerHTML=`<div class="card empty">まだページが作られていません</div>`;return}
+  $("#upd").textContent=`${META.updated} 更新・${META.count.toLocaleString()}レース`;
+  const t=store.get("trend",null);if(t){$("#tr-bank").value=t.bank;$("#tr-cls").value=t.cls}
+  const vc=store.get("vcls",null);if(vc)$("#vn-cls").value=vc;
+  const pos=store.get("pos",null);
+  if(pos){const di=META.days.indexOf(pos.day);if(di>=0){st.day=di;try{const D=await loadDay(di);const vi=D.venues.findIndex(v=>v.venue===pos.venue);if(vi>=0){st.venue=vi;st.race=pos.race}}catch(e){}}}
+  await showToday();route();
+})();
+</script>
+</body>
+</html>

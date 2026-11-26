@@ -1,0 +1,43 @@
+name: 過去データの取り込み
+on:
+  schedule:
+    # 毎日の更新（6:15・21:10）と重ならない時間に、1回100分ずつさかのぼる
+    - cron: "30 0,3,6,9,15,18 * * *"
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "この日までさかのぼる（YYYY-MM-DD。空なら1年前まで）"
+        required: false
+        default: ""
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 過去の結果をさかのぼって取り込む
+        run: |
+          SINCE="${{ github.event.inputs.since }}"
+          if [ -z "$SINCE" ]; then SINCE="${{ vars.BACKFILL_SINCE }}"; fi
+          if [ -n "$SINCE" ]; then python run_update.py backfill --minutes 100 --since "$SINCE"
+          else python run_update.py backfill --minutes 100; fi
+      - name: 取り込んだ結果を保存
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add races
+          git diff --cached --quiet || git commit -m "過去データを追加 $(TZ=Asia/Tokyo date +'%Y-%m-%d %H:%M')"
+          git pull --rebase && git push

@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>F1ライン分析</title>
+<style>
+:root{
+  --bg:#f3f4f1; --panel:#ffffff; --ink:#1b1f1d; --muted:#626b66; --line:#d9ddd8;
+  --accent:#0d6b4f; --accent-soft:#e1efe9; --hot:#c2410c; --hot-soft:#fbe9df; --warn:#a16207;
+  --f-head:"Yu Gothic UI","Hiragino Sans","Meiryo",sans-serif;
+  --f-body:"BIZ UDPGothic","Yu Gothic UI","Hiragino Sans","Meiryo",sans-serif;
+  --f-num:Consolas,"SFMono-Regular",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#121614; --panel:#1b201e; --ink:#e7ebe8; --muted:#9aa39e; --line:#2e3532;
+  --accent:#4cc49a; --accent-soft:#163a2e; --hot:#fb8a50; --hot-soft:#3d2216; --warn:#e0b44a; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6}
+.wrap{max-width:1180px;margin:0 auto;padding:16px 20px 64px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+h1{font-family:var(--f-head);font-weight:900;font-size:1.5rem;margin:0}
+h2{font-family:var(--f-head);font-size:1.1rem;margin:0}
+h3{font-size:.95rem;margin:0}
+.grow{flex:1}
+nav{display:flex;gap:4px;overflow-x:auto;border-bottom:2px solid var(--line)}
+nav a{padding:8px 16px;color:var(--muted);text-decoration:none;font-weight:700;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px}
+nav a.on{color:var(--accent);border-color:var(--accent)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.muted{color:var(--muted);font-size:.85rem}
+.lbl{font-size:.75rem;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{font-size:.78rem;padding:2px 10px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:700;white-space:nowrap}
+.chip.hot{background:var(--hot-soft);color:var(--hot)}
+.car{display:inline-grid;place-items:center;min-width:26px;height:26px;border-radius:4px;font-family:var(--f-num);font-weight:700;border:1px solid #9995}
+.k1{background:#fff;color:#111}.k2{background:#111;color:#fff}.k3{background:#d62828;color:#fff}.k4{background:#1d4ed8;color:#fff}.k5{background:#facc15;color:#111}.k6{background:#15803d;color:#fff}.k7{background:#f97316;color:#111}.k8{background:#ec4899;color:#111}.k9{background:#7e22ce;color:#fff}
+.lines{display:flex;flex-wrap:wrap;gap:12px}
+.ln{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:8px;border:2px solid var(--line);background:var(--bg);cursor:pointer;min-width:90px}
+.ln:hover{border-color:var(--accent)}
+.ln.s{border-color:var(--accent);background:var(--accent-soft)}
+.ln .cars{display:flex;gap:3px}
+.ln .sub{font-size:.75rem;color:var(--muted)}
+.ln .stag{font-size:.72rem;font-weight:700;color:var(--accent)}
+.rider{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:.7rem}
+.rider .mk{color:var(--hot);font-weight:700;min-height:1em}
+.rider .low{color:var(--warn);font-weight:700}
+.rider{width:64px;text-align:center}
+.rider .nm{font-weight:700;font-size:.74rem;line-height:1.25;word-break:keep-all;overflow-wrap:anywhere}
+.car.xs{min-width:19px;height:19px;font-size:.75rem;border-radius:3px}
+.combo{display:inline-flex;align-items:center;gap:2px;white-space:nowrap}
+.combo .sep{color:var(--muted);font-size:.8rem}
+.s-badge{font-size:.7rem;font-weight:700;color:var(--panel);background:var(--accent);border-radius:3px;padding:0 4px;margin-right:2px}
+.todayline{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.todayline .grp{display:inline-flex;gap:2px;align-items:center;padding:2px;border-radius:4px}
+.todayline .grp.s{outline:2px solid var(--accent)}
+tr.bankrow td{background:var(--accent-soft);font-weight:700}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.85rem}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:.72rem;color:var(--muted);letter-spacing:.04em;position:sticky;top:0;background:var(--panel)}
+td.n{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+td.pat{white-space:normal;min-width:320px}
+td{vertical-align:top}
+.links{font-size:.8rem}
+.links a{display:inline-block}
+.bar{height:8px;border-radius:2px;background:var(--accent);display:inline-block;vertical-align:middle;margin-right:6px}
+.bar.hot{background:var(--hot)}
+.up{color:var(--accent);font-weight:700}.down{color:var(--hot);font-weight:700}
+a{color:var(--accent)}
+.links a{margin-right:10px;white-space:nowrap;font-weight:700}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.vbox{border-left:4px solid var(--accent);padding:4px 12px}
+.vbox.hot{border-color:var(--hot)}
+.vbox b{font-family:var(--f-num);font-size:1.35rem;display:block}
+select,input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+button{font:inherit;font-weight:700;background:var(--accent);color:var(--panel);border:0;border-radius:6px;padding:7px 14px;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+button.sm{padding:3px 10px;font-size:.85rem}
+button:disabled{opacity:.5;cursor:default}
+.racebtns{display:flex;flex-wrap:wrap;gap:4px}
+.racebtns button{min-width:44px}
+.seg{display:inline-flex;border:1px solid var(--accent);border-radius:6px;overflow:hidden}
+.seg button{border-radius:0;background:transparent;color:var(--accent)}
+.seg button.on{background:var(--accent);color:var(--panel)}
+.note{font-size:.8rem;color:var(--muted);margin:0}
+.empty{padding:24px;text-align:center;color:var(--muted)}
+.prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;min-width:160px}
+.prog i{display:block;height:100%;background:var(--accent);width:0}
+section[hidden]{display:none!important}
+section{display:flex;flex-direction:column;gap:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>F1ライン分析</h1>
+    <span class="muted" id="meta">読み込み中…</span>
+    <span class="grow"></span>
+    <div class="prog" id="prog" hidden><i></i></div>
+    <span class="muted" id="progmsg"></span>
+    <button class="ghost sm" id="btn-update">最新の結果を取り込む</button>
+  </header>
+  <nav>
+    <a href="#today">当日予想</a>
+    <a href="#analysis">傾向分析</a>
+    <a href="#venue">競輪場比較</a>
+    <a href="#data">データ</a>
+  </nav>
+
+  <!-- ===================== 当日予想 ===================== -->
+  <section id="today">
+    <div class="panel">
+      <div class="row">
+        <label class="lbl" for="t-date">開催日</label>
+        <input type="date" id="t-date">
+        <button id="t-load">F1の出走表を読み込む</button>
+        <span class="muted" id="t-loadmsg"></span>
+      </div>
+      <div id="t-venues" class="row" style="flex-direction:column;align-items:stretch;gap:6px"></div>
+      <details>
+        <summary class="muted" style="cursor:pointer">並びを手入力する</summary>
+        <div class="row" style="margin-top:8px">
+          <label class="lbl" for="m-lines">並び</label><input id="m-lines" placeholder="126-34-57" size="14">
+          <label class="lbl" for="m-marks">印</label><input id="m-marks" placeholder="1◎ 3○ 5▲" size="14">
+          <label class="lbl" for="m-cat">番組</label><select id="m-cat"></select>
+          <label class="lbl" for="m-cls">級</label><select id="m-cls"><option>A級</option><option>S級</option><option>チャレンジ</option><option>ガールズ</option></select>
+          <label class="lbl" for="m-venue">場</label><select id="m-venue"><option value="">指定なし</option></select>
+          <button id="m-go">この並びで分析</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="panel" id="t-card" hidden>
+      <div class="row"><h2 id="t-title"></h2><span class="grow"></span><a id="t-link" target="_blank" rel="noopener">Kドリームスで見る</a></div>
+      <div class="row" id="t-chips"></div>
+      <div class="lbl">並び予想　<span style="font-weight:400">（Sを取りそうなラインをクリック。もう一度押すと解除）</span></div>
+      <div class="lines" id="t-lines"></div>
+      <div class="tw"><table id="t-scompare"></table></div>
+      <p class="note">上の表は「各ラインがSを取った場合」の過去成績を並べたものです。行を押すとそのラインをSにして詳しく見られます。</p>
+    </div>
+
+    <div id="t-result"></div>
+  </section>
+
+  <!-- ===================== 傾向分析 ===================== -->
+  <section id="analysis" hidden>
+    <div class="panel">
+      <div class="row" id="a-filters"></div>
+      <p class="note" id="a-summary"></p>
+    </div>
+    <div id="a-body"></div>
+  </section>
+
+  <!-- ===================== 競輪場比較 ===================== -->
+  <section id="venue" hidden>
+    <div class="panel">
+      <div class="row" id="v-filters"></div>
+      <p class="note">競輪場ごとに、その周長の平均との差が ±8ポイント以上のところを色付けしています。30レース未満の場は参考値です。</p>
+    </div>
+    <div class="panel"><div class="tw"><table id="v-table"></table></div></div>
+  </section>
+
+  <!-- ===================== データ ===================== -->
+  <section id="data" hidden>
+    <div class="panel">
+      <h2>結果の取り込み</h2>
+      <p class="note">楽天Kドリームスの結果ページから F1 のレースだけを取り込みます。サイトに負荷をかけないよう1秒に1ページずつ読むので、1か月分でおよそ15〜25分かかります。取得済みのレースは飛ばします。</p>
+      <div class="row">
+        <label class="lbl" for="d-from">開始日</label><input type="date" id="d-from">
+        <label class="lbl" for="d-to">終了日</label><input type="date" id="d-to">
+        <button id="d-go">この期間を取り込む</button>
+      </div>
+      <p class="note" id="d-info"></p>
+    </div>
+    <div class="panel">
+      <h2>用語</h2>
+      <p class="note">S：結果表のS（スタートで前を取った選手）。その選手がいるラインを「Sライン」としています。<br>
+      B：バック（最終バックを先頭で通過）。Bの選手のラインを「主導権ライン」としています。Sラインが主導権も取った場合は「Sライン突っ張り」。<br>
+      並び：Kドリームスの「並び予想」を使っています（実際の周回とずれる場合があります）。<br>
+      ◎○▲：Kドリームス（アオケイ記者）の予想印。◎の選手がいるラインが「◎ライン」です。<br>
+      ⑥：6番車。最低得点：そのレースで競走得点が一番低い選手。</p>
+    </div>
+  </section>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const yen=v=>v==null?"—":Number(v).toLocaleString()+"円";
+const pc=v=>v==null?"—":v+"%";
+const car=c=>`<span class="car k${c}">${c}</span>`;
+const carxs=c=>`<span class="car xs k${c}">${c}</span>`;
+// "7-2-6" や "51 62 743" の数字を車番色で表示
+const colorCombo=s=>`<span class="combo">${[...String(s??"")].map(ch=>/[1-9]/.test(ch)?carxs(ch):(ch===" "?'<span class="sep">&nbsp;</span>':`<span class="sep">${esc(ch)}</span>`)).join("")}</span>`;
+const bankOf=v=>!v||!META?null:(META.bank333.includes(v)?"333m":META.bank500.includes(v)?"500m":"400m");
+const bar=(v,hot)=>v==null?"—":`<span class="bar${hot?" hot":""}" style="width:${Math.max(2,v*0.9)}px"></span>${v}%`;
+async function api(url,opt){const r=await fetch(url,opt);if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.statusText);return r.json()}
+let META=null;
+
+/* ---------- タブ ---------- */
+const TABS=["today","analysis","venue","data"];
+function route(){const h=location.hash.slice(1);const cur=TABS.includes(h)?h:"today";
+  TABS.forEach(t=>$("#"+t).hidden=t!==cur);
+  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#"+cur));
+  if(cur==="analysis")loadStats(); if(cur==="venue")loadVenues();}
+addEventListener("hashchange",route);
+
+/* ---------- メタ・更新 ---------- */
+async function loadMeta(){META=await api("/api/meta");
+  $("#meta").textContent=META.count?`${META.count.toLocaleString()}レース（${META.oldest}〜${META.last}）`:"データがありません。「データ」タブから取り込んでください";
+  $("#m-cat").innerHTML=META.categories.map(c=>`<option>${c}</option>`).join("");
+  $("#m-venue").innerHTML=`<option value="">指定なし</option>`+META.venues.map(v=>`<option>${v}</option>`).join("");
+  buildFilters();}
+async function startUpdate(body){const r=await api("/api/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});
+  if(!r.ok){alertMsg(r.message);return} pollProgress();}
+function alertMsg(m){$("#progmsg").textContent=m}
+async function pollProgress(){const p=await api("/api/progress");
+  $("#prog").hidden=!p.running; $("#prog i").style.width=p.total?(100*p.done/p.total)+"%":"5%";
+  $("#progmsg").textContent=p.message+(p.total?`（${p.done}/${p.total}）`:"");
+  $("#btn-update").disabled=$("#d-go").disabled=p.running;
+  if(p.running)setTimeout(pollProgress,2000); else {await loadMeta(); route();}}
+$("#btn-update").onclick=()=>startUpdate();
+$("#d-go").onclick=()=>startUpdate({from:$("#d-from").value,to:$("#d-to").value});
+
+/* ---------- 当日予想 ---------- */
+let CUR=null; // {lines, riders, category, cls, venue, title, url}
+let S_LINE=null;
+$("#t-date").value=new Date(Date.now()+9*3600e3).toISOString().slice(0,10);
+$("#t-load").onclick=async()=>{
+  $("#t-loadmsg").textContent="読み込み中…";$("#t-venues").innerHTML="";
+  try{const vs=await api("/api/today/races?date="+$("#t-date").value);
+    $("#t-loadmsg").textContent=vs.length?"":"この日のF1開催は見つかりませんでした";
+    $("#t-venues").innerHTML=vs.map(v=>`<div class="row"><b style="min-width:5em">${esc(v.venue)}</b><div class="racebtns">${
+      v.races.map(r=>`<button class="ghost sm" data-id="${r.id}" data-slug="${v.slug}">${r.no}R</button>`).join("")}</div></div>`).join("");
+  }catch(e){$("#t-loadmsg").textContent="読み込めませんでした："+e.message}};
+$("#t-venues").onclick=async e=>{const b=e.target.closest("button[data-id]");if(!b)return;
+  document.querySelectorAll("#t-venues button").forEach(x=>x.classList.toggle("ghost",x!==b));
+  $("#t-loadmsg").textContent="出走表を読み込み中…";
+  try{const r=await api(`/api/today/race?id=${b.dataset.id}&slug=${b.dataset.slug}`);
+    $("#t-loadmsg").textContent="";
+    CUR={lines:r.lines,riders:r.riders,category:r.category,cls:r.cls,venue:r.venue,
+         title:`${r.venue} ${r.race_no}R　${r.category_raw}`,url:r.url.replace("?pageType=result","")};
+    if(!CUR.lines.length){$("#t-loadmsg").textContent="並び予想がまだ出ていません。手入力で分析できます。";return}
+    S_LINE=null;SCOPE=null;showCard();
+  }catch(err){$("#t-loadmsg").textContent=err.message}};
+$("#m-go").onclick=()=>{
+  const lines=$("#m-lines").value.split(/[-ー－\/,、]+/).map(p=>[...p.replace(/\D/g,"")].map(Number)).filter(l=>l.length);
+  if(!lines.length)return;
+  const marks={};($("#m-marks").value.match(/[1-9]\s*[◎○▲△×注]|[◎○▲△×注]\s*[1-9]/g)||[]).forEach(t=>{const c=t.match(/[1-9]/)[0],m=t.match(/[◎○▲△×注]/)[0];marks[c]=m});
+  const riders=lines.flat().sort((a,b)=>a-b).map(c=>({car:c,mark:marks[c]||"",score:null}));
+  CUR={lines,riders,category:$("#m-cat").value,cls:$("#m-cls").value,venue:$("#m-venue").value||null,
+       title:`手入力　${$("#m-cat").value}`,url:null};
+  S_LINE=null;SCOPE=null;showCard();};
+function marksOf(){const m={};CUR.riders.forEach(r=>{if(r.mark)m[r.car]=r.mark});return m}
+function showCard(){
+  $("#t-card").hidden=false;$("#t-title").textContent=CUR.title;
+  $("#t-link").hidden=!CUR.url; if(CUR.url)$("#t-link").href=CUR.url;
+  const R=Object.fromEntries(CUR.riders.map(r=>[r.car,r]));
+  const scores=CUR.riders.map(r=>r.score).filter(Boolean);const low=scores.length?Math.min(...scores):null;
+  const shape=CUR.lines.map(l=>l.length).sort((a,b)=>b-a).join("-");
+  $("#t-chips").innerHTML=[CUR.category,CUR.cls,`${CUR.lines.flat().length}車立て`,shape,...(bankOf(CUR.venue)?[bankOf(CUR.venue)]:[])].map(t=>`<span class="chip">${esc(t)}</span>`).join("")
+    +(low?`<span class="chip hot">最低得点 ${CUR.riders.filter(r=>r.score===low).map(r=>r.car+"番").join("")}</span>`:"");
+  $("#t-lines").innerHTML=CUR.lines.map((l,i)=>`<div class="ln${S_LINE===i?" s":""}" data-i="${i}" tabindex="0">
+     <div class="cars">${l.map(c=>`<div class="rider"><span class="mk">${esc(R[c]?.mark||"")}</span>${car(c)}${R[c]?.name?`<span class="nm">${esc(R[c].name)}</span>`:""}<span class="${R[c]?.score===low?"low":""}">${R[c]?.score??""}</span></div>`).join("")}</div>
+     <span class="stag">${S_LINE===i?"このラインがS":"&nbsp;"}</span></div>`).join("");
+  runMatch(); compareS();}
+$("#t-lines").onclick=e=>{const d=e.target.closest(".ln");if(!d)return;const i=+d.dataset.i;S_LINE=S_LINE===i?null:i;showCard()};
+$("#t-lines").onkeydown=e=>{if(e.key==="Enter")$("#t-lines").onclick(e)};
+
+function body(s){return JSON.stringify({lines:CUR.lines,marks:marksOf(),s_line:s,category:CUR.category,cls:CUR.cls,venue:CUR.venue})}
+async function compareS(){
+  const rows=await Promise.all(CUR.lines.map((l,i)=>api("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:body(i)})));
+  $("#t-scompare").innerHTML=`<thead><tr><th>Sを取るライン</th><th>件数</th><th>そのライン1着</th><th>そのライン3着内</th><th>突っ張り率</th><th>万車券率</th><th>3連単中央値</th><th>照合の範囲・条件</th></tr></thead><tbody>`+
+   rows.map((r,i)=>{const a=r.scopes[r.default],me=a.per_line?.[i];return `<tr style="cursor:pointer" data-i="${i}"><td>${CUR.lines[i].map(car).join("")}</td>
+    <td class="n">${a.n}</td><td class="n">${pc(me?.win)}</td><td class="n">${pc(me?.top3)}</td><td class="n">${pc(a.tsuppari)}</td>
+    <td class="n">${pc(a.manken)}</td><td class="n">${yen(a.tri_med)}</td><td class="muted">${esc(a.name)}・${esc(a.level)}</td></tr>`}).join("")+"</tbody>";
+  $("#t-scompare").onclick=e=>{const tr=e.target.closest("tr[data-i]");if(tr){S_LINE=+tr.dataset.i;showCard()}};}
+
+let SCOPE=null;
+async function runMatch(){
+  const box=$("#t-result");box.innerHTML=`<div class="panel empty">分析中…</div>`;
+  const r=await api("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:body(S_LINE)});
+  if(!SCOPE||!r.scopes[SCOPE])SCOPE=r.default;
+  const a=r.scopes[SCOPE];
+  const sDesc=S_LINE==null?"Sは指定なし（Sライン別の成績を合算）":`Sライン＝${CUR.lines[S_LINE].join("")}`;
+  const scopeBtns=Object.keys(r.scopes).length>1?`<div class="seg">${["bank","venue","all"].filter(k=>r.scopes[k]).map(k=>`<button data-s="${k}" class="${SCOPE===k?"on":""}">${esc(r.scopes[k].name)} ${r.scopes[k].n}</button>`).join("")}</div>`:"";
+  if(!a.n){box.innerHTML=`<div class="panel"><div class="row"><h2>同じ型の過去レース</h2><span class="grow"></span>${scopeBtns}</div><div class="empty">条件に合う過去レースがありません。データを増やすか、別のSを試してください。</div></div>`;bindScope();return}
+  const L=CUR.lines;
+  box.innerHTML=`
+  <div class="panel">
+    <div class="row"><h2>同じ型の過去レース ${a.n}件</h2><span class="grow"></span>${scopeBtns}</div>
+    <p class="note">${esc(sDesc)}　／　範囲：${esc(a.name)}${r.today.cls?"・"+esc(r.today.cls)+"のみ":""}　照合の条件：${esc(a.level)}（${a.tried.map(t=>esc(t.level)+" "+t.n+"件").join("、")}）</p>
+    <div class="verdict">
+      <div class="vbox"><span class="lbl">3連単 中央値</span><b>${yen(a.tri_med)}</b><span class="muted">平均 ${yen(a.tri_avg)}</span></div>
+      <div class="vbox hot"><span class="lbl">万車券率</span><b>${pc(a.manken)}</b></div>
+      <div class="vbox"><span class="lbl">Sライン突っ張り</span><b>${pc(a.tsuppari)}</b><span class="muted">Sのラインがそのまま主導権</span></div>
+      <div class="vbox"><span class="lbl">決まり手</span><b style="font-size:1rem">逃${pc(a.kimarite["逃"])} 捲${pc(a.kimarite["捲"])}<br>差${pc(a.kimarite["差"])} マ${pc(a.kimarite["マ"])}</b></div>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><h2>ラインごとの成績</h2><div class="tw"><table>
+      <thead><tr><th>ライン</th><th>1着</th><th>2着内</th><th>3着内</th><th>主導権</th><th>1着時の3連単</th></tr></thead><tbody>
+      ${a.per_line.map(p=>`<tr><td>${p.cars.map(car).join("")} <span class="muted">${esc(p.label)}</span></td><td class="n">${bar(p.win)}</td><td class="n">${pc(p.top2)}</td><td class="n">${pc(p.top3)}</td><td class="n">${pc(p.lead)}</td><td class="n">${yen(p.win_tri)}</td></tr>`).join("")}
+      </tbody></table></div>
+      <p class="note">主導権＝そのラインの選手が最終バックを先頭で通過（B）した割合</p></div>
+    <div class="panel"><h2>買い目の参考（2車単）</h2><div class="tw"><table>
+      <thead><tr><th>2車単</th><th>件数</th><th>割合</th><th>その時の3連単中央値</th></tr></thead><tbody>
+      ${a.exacta.length?a.exacta.map(x=>`<tr><td>${x.combo.split("-").map(c=>car(+c)).join(" → ")}</td><td class="n">${x.n}</td><td class="n">${bar(x.share)}</td><td class="n">${yen(x.tri_med)}</td></tr>`).join(""):`<tr><td colspan="4" class="muted">当日の車番に置き換えられる組み合わせがありません</td></tr>`}
+      </tbody></table></div>
+      <p class="note">過去レースの1・2着を「どのラインの何番手か」で見て、当日の車番に置き換えています。</p></div>
+  </div>
+  <div class="panel"><h2>多い展開パターン</h2>${todayLine()}${triTable(a.trifecta,a)}</div>
+  <div class="panel"><h2>万車券になったときの着順</h2>${a.tri_manken.length?todayLine()+triTable(a.tri_manken,a,true):`<p class="muted">万車券はありませんでした</p>`}</div>
+  <div class="panel"><h2>該当レース（新しい順）</h2><div class="tw"><table><thead><tr><th>レース</th><th>並び</th><th>3連単</th><th>払戻</th></tr></thead><tbody>
+    ${a.races.map(x=>`<tr><td><a href="${x.url}" target="_blank" rel="noopener">${esc(x.text)}</a></td><td>${colorCombo(x.lines)}</td><td>${colorCombo(x.combo||"")}</td><td class="n">${yen(x.tri)}</td></tr>`).join("")}
+  </tbody></table></div></div>`;
+  bindScope();}
+function bindScope(){document.querySelectorAll("#t-result .seg button").forEach(b=>b.onclick=()=>{SCOPE=b.dataset.s;runMatch()})}
+function todayLine(){return `<div class="todayline"><span class="lbl">並び</span>${CUR.lines.map((l,i)=>`<span class="grp${S_LINE===i?" s":""}">${S_LINE===i?'<span class="s-badge">S</span>':""}${l.map(car).join("")}</span>`).join('<span class="muted">-</span>')}</div>`}
+function triTable(rows,a,mk){if(!rows.length)return `<p class="muted">当日の車番に置き換えられる着順がありませんでした</p>`;
+  return `<div class="tw"><table><thead><tr><th>着順（当日の車番）</th><th>展開パターン／過去レース</th><th>件数</th><th>3連単中央値</th><th>最高</th><th>万車券率</th></tr></thead><tbody>
+  ${rows.map(t=>`<tr><td><span class="combo">${t.combo.split("-").map(car).join('<span class="sep">-</span>')}</span></td>
+   <td class="pat"><div>${esc(t.pattern)}${t.patterns>1?` <span class="muted">ほか${t.patterns-1}通り</span>`:""}</div><div class="links">${t.races.map(x=>`<a href="${x.url}" target="_blank" rel="noopener" title="${esc(x.lines)} ${esc(x.combo||"")} ${yen(x.tri)}">${esc(x.text)}</a>`).join("")}${t.n>6?`<span class="muted">他${t.n-6}件</span>`:""}</div></td>
+   <td class="n">${t.n}</td><td class="n">${yen(t.tri_med)}</td><td class="n">${yen(t.tri_max)}</td><td class="n">${pc(t.manken)}</td></tr>`).join("")}</tbody></table></div>
+  <p class="note">過去レースの1〜3着を「どのラインの何番手か」に直して、当日の車番に置き換えています（置き換えられたのは ${a.n_conv}/${a.n} 件）。${mk?"":"件数は置き換えられたレースの中での数です。"}</p>`}
+function patTable(ps){return `<div class="tw"><table><thead><tr><th>展開パターン／過去レース</th><th>件数</th><th>割合</th><th>3連単中央値</th><th>万車券率</th></tr></thead><tbody>
+  ${ps.map(p=>`<tr><td class="pat"><div>${esc(p.pattern)}</div><div class="links">${p.races.slice(0,6).map(x=>`<a href="${x.url}" target="_blank" rel="noopener" title="${esc(x.lines)} ${esc(x.combo||"")} ${yen(x.tri)}">${esc(x.text)}</a>`).join("")}${p.n>6?`<span class="muted">他${p.n-6}件</span>`:""}</div></td><td class="n">${p.n}</td><td class="n">${bar(p.share,p.manken>=40)}</td><td class="n">${yen(p.tri_med)}</td><td class="n">${pc(p.manken)}</td></tr>`).join("")}</tbody></table></div>`}
+
+/* ---------- フィルター ---------- */
+function sel(id,label,opts,all="すべて"){return `<label class="lbl" for="${id}">${label}</label><select id="${id}"><option>${all}</option>${opts.map(o=>`<option>${esc(o)}</option>`).join("")}</select>`}
+function buildFilters(){
+  if(!$("#a-cls")){
+    $("#a-filters").innerHTML=sel("a-cls","級",["男子","S級","A級","チャレンジ","ガールズ"])+sel("a-category","番組",META.categories)+sel("a-type","ライン",META.types)+sel("a-shape","並びの形",META.shapes)+sel("a-bank","周長",META.banks)+sel("a-venue","競輪場",META.venues,"全場")+sel("a-n_cars","車立て",["7","6","5","9"])+`<label class="lbl" for="a-since">この日以降</label><input type="date" id="a-since">`;
+    $("#a-cls").value="男子";
+    $("#a-filters").onchange=e=>{if(e.target.id==="a-bank")fillVenues();loadStats()};
+    $("#v-filters").innerHTML=sel("v-cls","級",["男子","S級","A級","チャレンジ","ガールズ"])+sel("v-category","番組",META.categories)+sel("v-type","ライン",META.types)+sel("v-bank","周長",META.banks)+sel("v-n_cars","車立て",["7","6","5","9"]);
+    $("#v-cls").value="男子";$("#v-n_cars").value="7";
+    $("#v-filters").onchange=loadVenues;
+  }}
+function fillVenues(){const b=$("#a-bank").value,cur=$("#a-venue").value;
+  const vs=META.venues.filter(v=>b==="すべて"||bankOf(v)===b);
+  $("#a-venue").innerHTML=`<option value="全場">全場${b==="すべて"?"":"（"+b+"）"}</option>`+vs.map(v=>`<option>${esc(v)}</option>`).join("");
+  if(vs.includes(cur))$("#a-venue").value=cur;}
+function q(prefix){const p=new URLSearchParams();["cls","category","type","shape","bank","venue","n_cars","since"].forEach(k=>{const el=$(`#${prefix}-${k}`);if(el&&el.value&&el.value!=="すべて"&&el.value!=="全場")p.set(k,el.value)});return p}
+
+async function loadStats(){if(!META)return;const s=await api("/api/stats?"+q("a"));
+  $("#a-summary").textContent=`${s.summary.n.toLocaleString()}レース　万車券率 ${pc(s.summary.manken)}　3連単中央値 ${yen(s.summary.tri_med)}`;
+  if(!s.summary.n){$("#a-body").innerHTML=`<div class="panel empty">条件に合うレースがありません</div>`;return}
+  const m=s.marks;
+  $("#a-body").innerHTML=`
+  <div class="panel"><h2>Sを取ったラインと結果</h2><div class="tw"><table><thead><tr><th>ライン区分</th><th>Sライン</th><th>件数</th><th>Sライン1着</th><th>Sライン3着内</th><th>突っ張り</th><th>万車券率</th><th>3連単中央値</th></tr></thead><tbody>
+   ${s.s_table.map(r=>`<tr><td>${esc(r.type)}</td><td>${esc(r.s)}</td><td class="n">${r.n}</td><td class="n">${bar(r.win)}</td><td class="n">${pc(r.top3)}</td><td class="n">${pc(r.tsuppari)}</td><td class="n">${bar(r.manken,true)}</td><td class="n">${yen(r.tri_med)}</td></tr>`).join("")}
+  </tbody></table></div><p class="note">5件以上ある組み合わせだけ表示。Sライン＝結果表でSが付いた選手のライン。</p></div>
+  <div class="grid2">
+   <div class="panel"><h2>予想印 ◎・○ のライン</h2><div class="tw"><table><thead><tr><th></th><th>件数</th><th>1着</th><th>2着内</th><th>3着内</th><th>全員4着以下</th><th>その時の3連単平均</th><th>Sを取った率</th></tr></thead><tbody>
+    ${Object.entries(m).filter(([k,v])=>v).map(([k,v])=>`<tr><td>${k}</td><td class="n">${v.n}</td><td class="n">${pc(v.win)}</td><td class="n">${pc(v.top2)}</td><td class="n">${pc(v.top3)}</td><td class="n">${pc(v.dead)}</td><td class="n">${yen(v.dead_tri)}</td><td class="n">${pc(v.as_s)}</td></tr>`).join("")}
+   </tbody></table></div>
+   <div class="tw"><table><thead><tr><th>◎ラインとS</th><th>件数</th><th>◎ライン1着</th><th>3着内</th><th>万車券率</th><th>3連単中央値</th></tr></thead><tbody>
+    ${s.hon_by_s.map(r=>`<tr><td>${r.case}</td><td class="n">${r.n}</td><td class="n">${pc(r.win)}</td><td class="n">${pc(r.top3)}</td><td class="n">${pc(r.manken)}</td><td class="n">${yen(r.tri_med)}</td></tr>`).join("")}
+   </tbody></table></div></div>
+   <div class="panel"><h2>決まり手（1着）</h2><div class="tw"><table><thead><tr><th>ライン区分</th><th>件数</th><th>逃</th><th>捲</th><th>差</th><th>マ</th></tr></thead><tbody>
+    ${s.kimarite.map(r=>`<tr><td>${esc(r.type)}</td><td class="n">${r.n}</td><td class="n">${pc(r["逃"])}</td><td class="n">${pc(r["捲"])}</td><td class="n">${pc(r["差"])}</td><td class="n">${pc(r["マ"])}</td></tr>`).join("")}
+   </tbody></table></div></div>
+  </div>
+  <div class="grid2">
+   ${riderPanel("⑥（6番車）の着順",s.six)}
+   ${riderPanel("競走得点が一番低い選手の着順",s.lowest)}
+  </div>
+  <div class="panel"><h2>番組 × ライン区分</h2><div class="tw"><table><thead><tr><th>番組</th><th>ライン区分</th><th>件数</th><th>突っ張り</th><th>万車券率</th><th>3連単中央値</th><th>3連単平均</th></tr></thead><tbody>
+   ${s.by_category.map(r=>`<tr><td>${esc(r.category)}</td><td>${esc(r.type)}</td><td class="n">${r.n}</td><td class="n">${pc(r.tsuppari)}</td><td class="n">${bar(r.manken,true)}</td><td class="n">${yen(r.tri_med)}</td><td class="n">${yen(r.tri_avg)}</td></tr>`).join("")}
+  </tbody></table></div></div>
+  <div class="panel"><h2>多い展開パターン</h2>${patTable(s.patterns)}</div>`;}
+function riderPanel(t,rows){return `<div class="panel"><h2>${t}</h2><div class="tw"><table><thead><tr><th>位置</th><th>件数</th><th>1着</th><th>3着内</th><th>3着内の時の3連単平均</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${esc(r.case)}</td><td class="n">${r.n}</td><td class="n">${pc(r.win)}</td><td class="n">${bar(r.top3,true)}</td><td class="n">${yen(r.tri_hit)}</td></tr>`).join("")}</tbody></table></div></div>`}
+
+async function loadVenues(){if(!META)return;const v=await api("/api/venues?"+q("v"));
+  const cols=[["s_top3","Sライン3着内"],["s_win","Sライン1着"],["tsuppari","突っ張り"],["nige","逃げ"],["makuri","捲り"],["sashi","差し"],["hon_win","◎ライン1着"],["manken","万車券率"]];
+  const cell=(r,k,T)=>{if(r[k]==null)return `<td class="n">—</td>`;const d=T[k]==null?0:r[k]-T[k];const c=Math.abs(d)>=8?(d>0?"up":"down"):"";return `<td class="n"><span class="${c}">${r[k]}%</span></td>`};
+  const totalRow=(name,T,cls)=>`<tr class="${cls}"><td>${name}</td><td class="n">${T.n.toLocaleString()}</td>${cols.map(c=>`<td class="n">${pc(T[c[0]])}</td>`).join("")}<td class="n">${yen(T.tri_med)}</td></tr>`;
+  $("#v-table").innerHTML=`<thead><tr><th>競輪場</th><th>件数</th>${cols.map(c=>`<th>${c[1]}</th>`).join("")}<th>3連単中央値</th></tr></thead><tbody>
+   ${totalRow("全場平均",v.total,"")}
+   ${v.groups.map(g=>totalRow(g.bank+" 平均",g.total,"bankrow")+g.rows.map(r=>`<tr${r.n<30?' class="muted"':''}><td>${esc(r.venue)}${r.n<30?"（参考）":""}</td><td class="n">${r.n}</td>${cols.map(c=>cell(r,c[0],g.total)).join("")}<td class="n">${yen(r.tri_med)}</td></tr>`).join("")).join("")}</tbody>`;}
+
+/* ---------- 起動 ---------- */
+(async()=>{
+  const t=new Date(Date.now()+9*3600e3);const f=new Date(t-365*864e5);
+  $("#d-to").value=t.toISOString().slice(0,10);$("#d-from").value=f.toISOString().slice(0,10);
+  await loadMeta();route();
+  const p=await api("/api/progress");if(p.running)pollProgress();
+  $("#d-info").textContent=META.count?`現在 ${META.count.toLocaleString()}レース（最新 ${META.last}）`:"まだデータがありません";
+})();
+</script>
+</body>
+</html>

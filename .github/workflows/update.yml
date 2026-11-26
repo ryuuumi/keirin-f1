@@ -1,0 +1,46 @@
+name: 毎日の更新
+on:
+  schedule:
+    - cron: "15 21 * * *"   # 毎朝 6:15（日本時間）
+    - cron: "10 12 * * *"   # 毎晩 21:10（日本時間）
+    - cron: "30 13 * * *"   # 毎晩 22:30（日本時間）
+  workflow_dispatch:
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 結果の取り込みとページの書き出し
+        run: python run_update.py daily --minutes 60
+      - name: 取り込んだ結果を保存
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add races
+          git diff --cached --quiet || git commit -m "結果を更新 $(TZ=Asia/Tokyo date +'%Y-%m-%d %H:%M')"
+          git pull --rebase && git push
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
