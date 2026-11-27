@@ -215,7 +215,7 @@ const pct=(a,b)=>b?100*a/b:null;
 const med=xs=>{xs=xs.filter(x=>x).sort((a,b)=>a-b);if(!xs.length)return null;const m=xs.length>>1;return xs.length%2?xs[m]:Math.round((xs[m-1]+xs[m])/2)};
 const avg=xs=>{xs=xs.filter(x=>x);return xs.length?Math.round(xs.reduce((a,b)=>a+b,0)/xs.length):null};
 const store={get(k,d){try{return JSON.parse(localStorage.getItem("f1:"+k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem("f1:"+k,JSON.stringify(v))}catch(e){}}};
-async function getJSON(u,bust=true){const r=await fetch(bust?u+(u.includes("?")?"&":"?")+"t="+Date.now():u);if(!r.ok)throw new Error(r.status);return r.json()}
+async function getJSON(u,bust=true){const r=await fetch(bust?u+(u.includes("?")?"&":"?")+"t="+Date.now():u);if(!r.ok){let m=String(r.status);try{const j=await r.json();if(j.error)m=j.error}catch(e){}throw new Error(m)}return r.json()}
 const GRADES=["S","A","B","C","D","E"];
 
 let META=null,DAYS={},TREND=null,RIDERS=null,NOTES={venues:{},riders:{}};
@@ -252,7 +252,8 @@ async function showToday(){
   $("#days").innerHTML=META.days.map((d,i)=>`<button class="${i===st.day?"on":""}" data-i="${i}">${dayLabel(d,i)}</button>`).join("");
   $("#rr").innerHTML="";
   if(META.pc&&!DAYS[META.days[st.day]])$("#race").innerHTML=`<div class="card empty">読み込み中…（このPCで分析するときは1〜3分かかります）</div>`;
-  let D;try{D=await loadDay(st.day)}catch(e){$("#race").innerHTML=`<div class="card empty">データを読み込めませんでした</div>`;return}
+  let D;try{D=await loadDay(st.day)}catch(e){$("#venues").innerHTML="";$("#races").innerHTML="";$("#manual").hidden=true;
+    $("#race").innerHTML=`<div class="card empty">データを読み込めませんでした<br><span class="muted">${esc(e.message)}</span><br><button class="btn" id="retry">もう一度読み込む</button></div>`;$("#retry").onclick=()=>showToday();return}
   if(!D.venues.length){$("#venues").innerHTML="";$("#races").innerHTML="";$("#manual").hidden=true;$("#race").innerHTML=`<div class="card empty">この日のF1開催はありません（または出走表がまだ出ていません）</div>`;return}
   if(st.venue>=D.venues.length)st.venue=0;
   $("#venues").innerHTML=D.venues.map((v,i)=>`<button class="pill ${i===st.venue?"on":""}" data-i="${i}">${esc(v.venue)}<small>${v.bank.replace("m","")}</small></button>`).join("");

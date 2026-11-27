@@ -91,14 +91,22 @@ def day(d):
             return send_from_directory(DATA, f.name)
         try:
             r = requests.get(f"{PAGES}/data/day-{d}.json", timeout=30)
+            print(f"GitHubの分析 {d}: {r.status_code}")
             if r.ok and r.json().get("venues"):
                 f.write_bytes(r.content)
                 return send_from_directory(DATA, f.name)
-        except Exception:
-            pass
-    with _lock:
-        out = sb.build_day(STATE["ds"], date.fromisoformat(d))
-        sb.dump(f, out)
+        except Exception as e:
+            print(f"GitHubの分析を取れませんでした：{e}")
+    try:
+        with _lock:
+            print(f"{d} の出走表をこのPCで分析しています（1〜3分）…")
+            out = sb.build_day(STATE["ds"], date.fromisoformat(d))
+            sb.dump(f, out)
+            print(f"{d} の分析ができました（{len(out['venues'])}場）")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify(error=f"{type(e).__name__}: {e}"), 500
     return send_from_directory(DATA, f.name)
 
 
