@@ -116,7 +116,13 @@ def build_day(ds: list[dict], d: date, log=print) -> dict:
         if md.grade != "F1":
             continue
         races = []
+        try:  # S級のレースだけ（一覧ページ1枚で級が分かる）
+            cls = kd.meeting_classes(md.venue_slug, md.day_id, "racecard")
+        except Exception:
+            cls = {}
         for rid in md.race_ids:
+            if cls and not kd.is_target(cls.get(rid, "")):
+                continue
             try:
                 r = kd.fetch_race(rid, md.venue_slug, result=False)
                 if r:
@@ -124,13 +130,14 @@ def build_day(ds: list[dict], d: date, log=print) -> dict:
             except Exception as e:
                 log(f"skip {rid}: {e}")
                 continue
-            if not r:
+            if not r or r.cls != "S級":
                 continue
             item = item_from_race(ds, refs, r, md.venue)
             item["rid"], item["slug"] = rid, md.venue_slug
             races.append(item)
         if races:
             venues.append(dict(venue=md.venue, bank=an.bank_of(md.venue), races=races))
+    venues.sort(key=lambda v: an.venue_order(v["venue"]))
     return dict(date=d.isoformat(), venues=venues, refs=refs)
 
 
@@ -159,9 +166,9 @@ def trend_rows(ds: list[dict]) -> dict:
     lrows = [[i, l["size"], int(l["is_s"]), int(l["win"]), int(l["top3"]), int(l["line12"]), int(l["bante_win"]),
               b(l["same"]), b(l["local"]), b(l["jiriki"])]
              for i, d in enumerate(ds) for l in d["L"] if l["size"] >= 2]
-    return dict(cols=cols, rows=rows, lcols=lcols, lrows=lrows, banks=an.BANKS, types=an.LINE_TYPES, leaders=an.LEADER_TYPES,
+    return dict(cols=cols, rows=rows, lcols=lcols, lrows=lrows, banks=an.BANKS, types=an.line_types_in([d for d in ds if d["n_cars"] == 7]), leaders=an.LEADER_TYPES,
                 categories=kd.CATEGORY_ORDER,
-                venues=sorted({d["venue"] for d in ds}, key=lambda v: (an.BANKS.index(an.bank_of(v)), v)),
+                venues=sorted({d["venue"] for d in ds}, key=an.venue_order),
                 bank333=sorted(an.BANK_333), bank500=sorted(an.BANK_500))
 
 

@@ -93,6 +93,25 @@ def list_day(d: date, kind: str = "raceresult") -> list[MeetingDay]:
     return out
 
 
+def meeting_classes(slug: str, day_id: str, kind: str = "raceresult") -> dict[str, str]:
+    """開催日ごとの一覧ページから {レースID: 種別名（例 'S級予選'）}。kind = raceresult / racecard"""
+    html = fetch(f"{BASE}/{slug}/{kind}/{day_id}/")
+    soup = BeautifulSoup(html, "lxml")
+    out = {}
+    for p in soup.select("p.race"):
+        a = p.find("a", href=True)
+        name = p.find("span", class_="name")
+        m = re.search(r"racedetail/(\d{16})", a["href"]) if a else None
+        if m and name:
+            out[m.group(1)] = nfkc(name.get_text())
+    return out
+
+
+def is_target(category_raw: str) -> bool:
+    """分析の対象：S級のレースだけ（A級・チャレンジ・ガールズは取り込まない）"""
+    return normalize_category(category_raw)[0] == "S級"
+
+
 # ---------------------------------------------------------------- レース詳細
 @dataclass
 class Rider:

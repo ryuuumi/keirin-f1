@@ -102,7 +102,8 @@ def enrich_missing(con, deadline=None, log=print) -> set[str]:
     import time as _t
     import nk_scraper as nk
     # nk_v=2 … 府県・期別まで取り込み済み
-    todo = [r for r in load_races(con) if r.get("nk_v") != 2 and not any((x.get("nk") or {}).get("pref") for x in r["riders"])]
+    todo = [r for r in load_races(con) if r.get("cls") == "S級" and r.get("nk_v") != 2
+            and not any((x.get("nk") or {}).get("pref") for x in r["riders"])]
     todo.sort(key=lambda r: r["date"], reverse=True)
     days = set()
     done = 0
@@ -160,9 +161,17 @@ def collect(start: date, end: date, con=None, grades=("F1",), log=print, deadlin
             for md in kd.list_day(d, "raceresult"):
                 if md.grade not in grades:
                     continue
-                for rid in md.race_ids:
-                    if rid not in have:
-                        targets.append((rid, md.venue_slug, md.venue))
+                todo = [rid for rid in md.race_ids if rid not in have]
+                if not todo:
+                    continue
+                try:  # S級のレースだけにしぼる（一覧ページ1枚で級が分かる）
+                    cls = kd.meeting_classes(md.venue_slug, md.day_id, "raceresult")
+                except Exception:
+                    cls = {}
+                for rid in todo:
+                    if cls and not kd.is_target(cls.get(rid, "")):
+                        continue
+                    targets.append((rid, md.venue_slug, md.venue))
         progress.total, progress.done = len(targets), 0
         for rid, slug, venue in targets:
             if deadline and _t.time() > deadline:

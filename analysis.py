@@ -13,9 +13,20 @@ MANKEN = 10_000
 POS_NAME = ["先頭", "番手", "3番手", "4番手", "5番手"]
 
 # 周長（Kドリームス出走表の「同走路年間勝利度数【xxx】」で確認。前橋は335mだが333m扱い）
+# 北から順（KドリームスやKEIRIN.JPの地区順）
+VENUE_ORDER = ["函館", "青森", "いわき平", "弥彦", "前橋", "取手", "宇都宮", "大宮", "西武園", "京王閣", "立川",
+               "松戸", "千葉", "川崎", "平塚", "小田原", "伊東", "静岡", "名古屋", "岐阜", "大垣", "豊橋", "富山",
+               "松阪", "四日市", "福井", "奈良", "向日町", "和歌山", "岸和田", "玉野", "広島", "防府", "高松",
+               "小松島", "高知", "松山", "小倉", "久留米", "武雄", "佐世保", "別府", "熊本"]
+
+
+def venue_order(v: str) -> int:
+    return VENUE_ORDER.index(v) if v in VENUE_ORDER else len(VENUE_ORDER)
+
+
 BANK_333 = {"前橋", "松戸", "小田原", "伊東", "富山", "奈良", "防府"}
 BANK_500 = {"宇都宮", "大宮", "高知"}
-BANKS = ["333m", "400m", "500m"]
+BANKS = ["400m", "333m", "500m"]  # 競輪場が多い順
 
 
 def bank_of(venue: str, raw=None) -> str:
@@ -40,15 +51,15 @@ def line_type(lines: list[list[int]]) -> str:
     single = sum(1 for s in sizes if s == 1)
     if not sizes:
         return "不明"
-    if multi == 3 and single <= 1:
+    shape = line_shape(lines)
+    if multi == 3 and single == 0:
         return "三分戦"
+    if multi == 3 and single == 1:
+        return "三分戦(単騎あり)"
     if multi == 2 and single <= 1:
-        shape = line_shape(lines)
-        if shape in ("4-3", "3-3-1"):
-            return f"二分戦({shape})"
-        return "二分戦"
+        return f"二分戦({shape})"
     if multi == 2:
-        return "二分戦コマ切れ"
+        return f"二分戦コマ切れ({shape})"
     if multi == 1:
         return "その他"
     if multi >= 4 or (multi == 3 and single >= 2):
@@ -92,7 +103,25 @@ def line_features(cars: list[int], riders: dict, venue: str) -> dict:
     )
 
 
-LINE_TYPES = ["三分戦", "二分戦(4-3)", "二分戦(3-3-1)", "二分戦", "二分戦コマ切れ", "その他", "超コマ切れ"]
+TYPE_GROUPS = ["三分戦", "三分戦(単騎あり)", "二分戦(", "二分戦コマ切れ(", "その他", "超コマ切れ"]
+
+
+def type_order(t: str) -> int:
+    for i, g in enumerate(TYPE_GROUPS):
+        if t == g or (g.endswith("(") and t.startswith(g)):
+            return i
+    return len(TYPE_GROUPS)
+
+
+def line_types_in(ds) -> list[str]:
+    """データにあるライン区分を、区分の順→件数の多い順で"""
+    from collections import Counter
+    c = Counter(d["type"] for d in ds)
+    return sorted(c, key=lambda t: (type_order(t), -c[t]))
+
+
+LINE_TYPES = ["三分戦", "三分戦(単騎あり)", "二分戦(4-3)", "二分戦(3-3-1)", "二分戦(4-2-1)",
+              "二分戦コマ切れ(3-2-1-1)", "二分戦コマ切れ(2-2-1-1-1)", "その他", "超コマ切れ"]
 LEADER_TYPES = ["先行型", "先行型(叩かれ)", "捲り型", "自在型", "追込型"]
 
 
@@ -266,9 +295,12 @@ def digest_url(d: dict) -> str:
             f"&kaisaiDate={d['run_date'].replace('-', '')}&gradeCd=2&raceNo={d['race_no']}")
 
 
-def derive_all(races: list[dict]) -> list[dict]:
+def derive_all(races: list[dict], only_s: bool = True) -> list[dict]:
+    """分析に使う特徴量。初期設定では S級のレースだけ（A級などは取り込み済みでも使わない）"""
     out = []
     for r in races:
+        if only_s and r.get("cls") != "S級":
+            continue
         try:
             d = derive(r)
         except Exception:

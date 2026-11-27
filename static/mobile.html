@@ -140,6 +140,15 @@ input[type=search]{width:100%;padding:8px 10px;font-size:16px}
 .bottom a{flex:1;text-align:center;padding:12px 0;font-weight:700;color:var(--muted);font-size:.85rem;text-decoration:none}
 .bottom a.on{color:var(--accent)}
 section[hidden]{display:none!important}
+.stick{position:sticky;top:env(safe-area-inset-top,0px);z-index:8;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;display:flex;align-items:center;gap:8px;box-shadow:0 2px 10px #0002}
+.stick[hidden]{display:none}
+.stick .t{font-size:.75rem;font-weight:700;white-space:nowrap}
+.stick .ls{display:flex;align-items:flex-end;gap:6px;flex-wrap:wrap}
+.stick .grp{display:inline-flex;gap:1px;padding:1px;border-radius:4px;cursor:pointer;background:none;border:0;font:inherit;color:inherit;align-items:flex-end}
+.stick .grp.s{outline:2px solid var(--accent)}
+.stick .sbb{font-size:.6rem;font-weight:700;color:var(--panel);background:var(--accent);border-radius:3px;padding:0 3px;margin-right:2px;align-self:center}
+.stick .cmk{display:inline-flex;flex-direction:column;align-items:center;width:20px}
+.stick .cmk i{font-style:normal;font-size:.58rem;color:var(--hot);font-weight:700;min-height:.7rem;line-height:1}
 .lcol,.rcol{display:flex;flex-direction:column;gap:10px;min-width:0}
 .rd .pf{color:var(--muted)}
 .rd .pf.loc{color:var(--accent);font-weight:700}
@@ -156,7 +165,6 @@ button.btn.fill{background:var(--accent)}
 @media (min-width:900px){
   .phone{max-width:1180px}
   #today:not([hidden]){display:grid;grid-template-columns:430px minmax(0,1fr);gap:14px;align-items:start}
-  .rcol:empty{display:none}
   .bottom div{max-width:1180px}
   .sheet{max-width:680px;border-radius:14px 14px 0 0}
 }
@@ -176,7 +184,7 @@ section{display:flex;flex-direction:column;gap:10px}
       <div id="race"></div>
       <div class="card manual" id="manual" hidden></div>
     </div>
-    <div class="rcol" id="rr"></div>
+    <div class="rcol"><div class="stick" id="stick" hidden></div><div class="rcol" id="rr"></div></div>
   </section>
 
   <section id="trend" hidden>
@@ -250,7 +258,7 @@ async function loadDay(i){const d=META.days[i];if(!DAYS[d])DAYS[d]=await getJSON
 function dayLabel(d,i){const [y,m,dd]=d.split("-");return `${i===0?"今日":i===1?"明日":""} ${+m}/${+dd}`}
 async function showToday(){
   $("#days").innerHTML=META.days.map((d,i)=>`<button class="${i===st.day?"on":""}" data-i="${i}">${dayLabel(d,i)}</button>`).join("");
-  $("#rr").innerHTML="";
+  $("#rr").innerHTML="";$("#stick").hidden=true;
   if(META.pc&&!DAYS[META.days[st.day]])$("#race").innerHTML=`<div class="card empty">読み込み中…（このPCで分析するときは1〜3分かかります）</div>`;
   let D;try{D=await loadDay(st.day)}catch(e){$("#venues").innerHTML="";$("#races").innerHTML="";$("#manual").hidden=true;
     $("#race").innerHTML=`<div class="card empty">データを読み込めませんでした<br><span class="muted">${esc(e.message)}</span><br><button class="btn" id="retry">もう一度読み込む</button></div>`;$("#retry").onclick=()=>showToday();return}
@@ -275,18 +283,18 @@ function showRace(D,V,R){
   const sIdx=st.s==="n"?null:+st.s;
   let h=`<div class="card">
     <div style="display:flex;align-items:baseline;gap:8px"><h2>${esc(V.venue)} ${R.no}R ${esc(R.cat)}</h2><span style="margin-left:auto"></span>${META.pc&&R.rid&&!R.manual?`<button class="btn" id="pc-rebuild">最新の並びで作り直す</button>`:""}${R.manual?`<button class="btn" id="pc-unmanual">手入力をやめる</button>`:""}${R.url?`<a class="muted" href="${R.url}" target="_blank" rel="noopener" style="color:var(--accent)">出走表</a>`:""}</div>
-    <div class="chips"><span class="chip">${V.bank}</span><span class="chip">${esc(R.cls)}</span><span class="chip">${esc(R.category)}</span>${R.type?`<span class="chip">${esc(R.type.startsWith("二分戦(")?R.type:R.type+" "+shape)}</span>`:""}${low?`<span class="chip hot">最低得点 ${R.riders.filter(r=>r.score===low).map(r=>r.car+"番").join("")}</span>`:""}</div>`;
+    <div class="chips"><span class="chip">${V.bank}</span><span class="chip">${esc(R.cls)}</span><span class="chip">${esc(R.category)}</span>${R.type?`<span class="chip">${esc(R.type.includes("(")?R.type:R.type+" "+shape)}</span>`:""}${low?`<span class="chip hot">最低得点 ${R.riders.filter(r=>r.score===low).map(r=>r.car+"番").join("")}</span>`:""}</div>`;
   if(R.res)h+=`<button class="tog ${st.same?"on":""}" id="tog-same"><span class="sw"></span>同じ種別（${esc(R.category)}）だけで照合</button>`;
   if(R.lines.length){
     h+=`<div class="lines">${R.lines.map((l,i)=>{const ld=RD[l[0]]?.type;return `<div class="ln ${sIdx===i?"s":""}" data-i="${i}" role="button" tabindex="0">${ld&&l.length>0?`<span class="ltype">${esc(ld)}</span>`:""}<div class="cars">${l.map(c=>{const r=RD[c]||{};const sh=r.st?`H${r.st[1]} B${r.st[2]}`:(r.score??"");return `<div class="rd"><span class="mk">${esc(r.mark||"")}</span>${car(c)}${r.name?`<button class="nm" data-key="${esc(r.key||"")}" data-car="${c}">${esc((r.name||"").split(/\s/)[0])}</button>`:""}${r.pref?`<span class="pf ${r.pref===R.vpref?"loc":""}">${esc(r.pref)}</span>`:""}<span class="${r.score===low?"low":""}">${sh}</span></div>`}).join("")}</div>${tagsHTML(R.tags&&R.tags[i])}<span class="stag">${sIdx===i?"S":""}</span></div>`}).join("")}</div>
       <div class="hint">ラインをタップでSを切り替え・名前をタップで選手の過去レース<br>札：同県＝同じ府県が2人以上／地元＝開催場の県の選手がいる（緑字）／番手自力＝番手がH・Bを2回以上</div>`;
   }
-  if(!R.res){h+=`<div class="empty">${R.cls==="ガールズ"?"ガールズは分析の対象外です":"並び予想がまだ出ていません"}${META.pc&&R.cls!=="ガールズ"?"。下の「並びを手入力」で分析できます":""}</div></div>`;$("#race").innerHTML=h;$("#rr").innerHTML="";bindRace(D,V,R);return}
+  if(!R.res){h+=`<div class="empty">${R.cls==="ガールズ"?"ガールズは分析の対象外です":"並び予想がまだ出ていません"}${META.pc&&R.cls!=="ガールズ"?"。下の「並びを手入力」で分析できます":""}</div></div>`;$("#race").innerHTML=h;$("#rr").innerHTML="";$("#stick").hidden=true;bindRace(D,V,R);return}
   const res=R.res[st.s+(st.same?"":"a")]||R.res[st.same?"n":"na"];
   if(!st.scope||!res.scopes[st.scope])st.scope=res.default;
   const a=res.scopes[st.scope];
   h+=`<div class="seg">${["bank","venue","all"].filter(k=>res.scopes[k]).map(k=>`<button data-k="${k}" class="${k===st.scope?"on":""}">${esc(res.scopes[k].name)} ${res.scopes[k].n}件</button>`).join("")}</div>`;
-  if(!a.n){h+=`<div class="empty">この範囲には同じ型の過去レースがありません${st.same?"。「同じ種別だけ」を外すと増えます":""}</div></div>`;$("#race").innerHTML=h;$("#rr").innerHTML="";bindRace(D,V,R);return}
+  if(!a.n){h+=`<div class="empty">この範囲には同じ型の過去レースがありません${st.same?"。「同じ種別だけ」を外すと増えます":""}</div></div>`;$("#race").innerHTML=h;$("#rr").innerHTML="";$("#stick").hidden=true;bindRace(D,V,R);return}
   const k=a.kimarite||{};
   h+=`<div class="kpi">
       <div><span>3連単 中央値</span><b>${yen(a.tri_med)}</b></div>
@@ -308,8 +316,18 @@ function showRace(D,V,R){
   h+=`<div class="card"><div style="display:flex;align-items:baseline;gap:8px"><h2>該当レース（直近${a.races.length}レース）</h2><span class="muted" style="margin-left:auto">新しい順</span></div>
     <div class="muted">車番の上＝予想印、下＝S・B</div>
     <div class="hist">${a.races.map(id=>{const x=ref(id);return x?histRow(x):""}).join("")}</div></div>`;
-  $("#race").innerHTML=head;$("#rr").innerHTML=h;bindRace(D,V,R);
+  $("#race").innerHTML=head;$("#rr").innerHTML=h;bindRace(D,V,R);setStick(D,V,R);
 }
+// 下へスクロールして並びが見えなくなったら、上端に並びの帯を出す
+let stickObs=null;
+function setStick(D,V,R){const bar=$("#stick");const lines=$("#race .lines");
+  if(!lines||!R.res){bar.hidden=true;if(stickObs)stickObs.disconnect();return}
+  const RD=Object.fromEntries(R.riders.map(r=>[r.car,r]));const sIdx=st.s==="n"?null:+st.s;
+  bar.innerHTML=`<span class="t">${esc(V.venue)}${R.no}R</span><span class="ls">${R.lines.map((l,i)=>`<button class="grp ${sIdx===i?"s":""}" data-i="${i}">${sIdx===i?'<span class="sbb">S</span>':""}${l.map(c=>`<span class="cmk"><i>${esc(RD[c]?.mark||"")}</i>${car(c,"xs")}</span>`).join("")}</button>`).join("")}</span>`;
+  bar.onclick=e=>{const b=e.target.closest(".grp");if(!b)return;const i=b.dataset.i;st.s=st.s===i?"n":i;showRace(D,V,R)};
+  if(stickObs)stickObs.disconnect();
+  stickObs=new IntersectionObserver(es=>{for(const x of es)bar.hidden=x.isIntersecting||x.boundingClientRect.top>0});
+  stickObs.observe(lines);}
 function bindRace(D,V,R){
   document.querySelectorAll("#race .ln").forEach(b=>b.onclick=e=>{if(e.target.closest(".nm"))return;const i=b.dataset.i;st.s=st.s===i?"n":i;showRace(D,V,R)});
   document.querySelectorAll("#race .nm").forEach(b=>b.onclick=e=>{e.stopPropagation();const r=R.riders.find(x=>x.car==b.dataset.car);openRider(r.key,r)});
@@ -329,17 +347,16 @@ function showPcBar(){if(!META.pc)return;const bar=$("#pcbar");bar.hidden=false;
   bar.innerHTML=`<span class="muted">開催日</span><input type="date" id="pc-date" value="${META.days[st.day]||""}"><button class="btn" id="pc-load">この日の出走表を読み込む</button>`;
   $("#pc-load").onclick=()=>{const d=$("#pc-date").value;if(!d)return;let i=META.days.indexOf(d);if(i<0){META.days.push(d);i=META.days.length-1}st.day=i;st.venue=0;st.race=0;st.s="n";st.scope=null;st.manual=null;showToday()};}
 function showManual(D,V,R){const box=$("#manual");box.hidden=false;
-  const cats=["予選","初日特選","準決勝","一般","選抜","特選","決勝"],clss=["S級","A級","チャレンジ"];
+  const cats=["予選","初日特選","準決勝","一般","選抜","特選","決勝"];
   const cur=st.manual||R;
   box.innerHTML=`<h3>並びを手入力（${esc(V.venue)}）</h3>
     <div class="row"><input id="mn-lines" placeholder="並び 例：42-175-63" size="14" value="${esc((cur.lines||[]).map(l=>l.join("")).join("-"))}">
       <input id="mn-marks" placeholder="印 例：4◎ 2○ 5▲" size="14" value="${esc((cur.riders||[]).filter(r=>r.mark).map(r=>r.car+r.mark).join(" "))}"></div>
     <div class="row"><select id="mn-cat">${cats.map(c=>`<option${c===R.category?" selected":""}>${c}</option>`).join("")}</select>
-      <select id="mn-cls">${clss.map(c=>`<option${c===R.cls?" selected":""}>${c}</option>`).join("")}</select>
       <button class="btn fill" id="mn-go">この並びで分析</button></div>
     <div class="muted" id="mn-msg">並びが変わったとき・並び予想がまだ出ていないときに。選手名や回数は今の出走表のものを使います</div>`;
   $("#mn-go").onclick=async()=>{$("#mn-msg").textContent="分析中…";
-    try{const r=await fetch("api/manual",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({venue:V.venue,no:R.no,url:R.url,rid:R.rid,lines:$("#mn-lines").value,marks:$("#mn-marks").value,category:$("#mn-cat").value,cls:$("#mn-cls").value,riders:R.riders})});
+    try{const r=await fetch("api/manual",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({venue:V.venue,no:R.no,url:R.url,rid:R.rid,lines:$("#mn-lines").value,marks:$("#mn-marks").value,category:$("#mn-cat").value,cls:"S級",riders:R.riders})});
       const x=await r.json();if(!r.ok)throw new Error(x.error||r.status);Object.assign(D.refs,x.refs);x.item.rid=R.rid;st.manual=x.item;st.s="n";st.scope=null;showToday();window.scrollTo({top:0,behavior:"smooth"})}
     catch(e){$("#mn-msg").textContent="分析できませんでした："+e.message}};}
 
@@ -376,7 +393,7 @@ async function loadTrend(){if(!TREND){TREND=await getJSON("data/trend.json");TRE
 const bankOf=v=>TREND.bank333.includes(v)?"333m":TREND.bank500.includes(v)?"500m":"400m";
 function filterRows(f){const I=TREND.ix;return TREND.rows.filter(r=>{
   if(r[I.n]!==7)return false;
-  if(f.cls==="男子"?(r[I.cls]==="ガールズ"):(f.cls&&r[I.cls]!==f.cls))return false;
+  if(r[I.cls]!=="S級")return false;
   if(f.bank&&f.bank!=="すべて"&&r[I.bank]!==f.bank)return false;
   if(f.venue&&f.venue!=="すべて"&&r[I.venue]!==f.venue)return false;
   if(f.type&&f.type!=="すべて"&&r[I.type]!==f.type)return false;
@@ -416,14 +433,14 @@ function statsHTML(S){
 function sel(id,label,opts,val){return `<label>${label}<select id="${id}">${["すべて",...opts].map(o=>`<option${o===val?" selected":""}>${esc(o)}</option>`).join("")}</select></label>`}
 async function showTrend(){
   if(!TREND){$("#tr-body").innerHTML=`<div class="card empty">読み込み中…</div>`;await loadTrend()}
-  const f=store.get("trendf",{bank:"すべて",venue:"すべて",cls:"男子",type:"すべて",cat:"すべて",lead:"すべて"});
+  const f=store.get("trendf",{bank:"すべて",venue:"すべて",type:"すべて",cat:"すべて",lead:"すべて"});
+  if(f.type!=="すべて"&&!TREND.types.includes(f.type))f.type="すべて";
   const vs=TREND.venues.filter(v=>f.bank==="すべて"||bankOf(v)===f.bank);if(!vs.includes(f.venue))f.venue="すべて";
   $("#tr-f").innerHTML=sel("f-bank","周長",TREND.banks,f.bank)+sel("f-venue","競輪場",vs,f.venue)
-    +`<label>級<select id="f-cls">${["男子","S級","A級","チャレンジ"].map(o=>`<option${o===f.cls?" selected":""}>${o}</option>`).join("")}</select></label>`
     +sel("f-type","ライン構造",TREND.types,f.type)+sel("f-cat","レース種別",TREND.categories,f.cat)+sel("f-lead","Sラインの先頭",TREND.leaders,f.lead);
-  $("#tr-f").onchange=e=>{const g={bank:$("#f-bank").value,venue:$("#f-venue").value,cls:$("#f-cls").value,type:$("#f-type").value,cat:$("#f-cat").value,lead:$("#f-lead").value};if(e.target.id==="f-bank")g.venue="すべて";store.set("trendf",g);showTrend()};
+  $("#tr-f").onchange=e=>{const g={bank:$("#f-bank").value,venue:$("#f-venue").value,type:$("#f-type").value,cat:$("#f-cat").value,lead:$("#f-lead").value};if(e.target.id==="f-bank")g.venue="すべて";store.set("trendf",g);showTrend()};
   const rows=filterRows(f);const S=computeStats(rows);
-  $("#tr-sum").textContent=`${S.sum.n.toLocaleString()}レース（7車立て）　万車券率 ${pc(S.sum.man)}　3連単中央値 ${yen(S.sum.tri)}`;
+  $("#tr-sum").textContent=`S級 ${S.sum.n.toLocaleString()}レース（7車立て）　万車券率 ${pc(S.sum.man)}　3連単中央値 ${yen(S.sum.tri)}`;
   $("#tr-body").innerHTML=S.sum.n?statsHTML(S):`<div class="card empty">条件に合うレースがありません</div>`;}
 
 /* ---------- 競輪場 ---------- */
@@ -433,8 +450,8 @@ function venueMetrics(rows){const I=TREND.ix;const n=rows.length;const s=rows.fi
     hon:pct(rows.filter(r=>r[I.hon]&&r[I.hon][0]).length,n),man:pct(rows.filter(r=>r[I.man]).length,n),tri:med(rows.map(r=>r[I.tri]))}}
 async function showVenue(){
   if(!TREND){$("#vn-body").innerHTML=`<div class="card empty">読み込み中…</div>`;await loadTrend()}
-  const cur=store.get("venue",null);const cls=store.get("vcls","男子");
-  $("#vn-pick").innerHTML=`<h2>競輪場を選ぶ</h2>`+TREND.banks.map(b=>`<div class="vhead">${b}</div><div class="vgrid">${TREND.venues.filter(v=>bankOf(v)===b).map(v=>`<button class="${v===cur?"on":""}" data-v="${esc(v)}">${esc(v)}</button>`).join("")}</div>`).join("");
+  const cur=store.get("venue",null);const cls="S級";
+  $("#vn-pick").innerHTML=`<h2>競輪場を選ぶ</h2><div class="muted">北から順。数字は周長</div><div class="vgrid">${TREND.venues.map(v=>`<button class="${v===cur?"on":""}" data-v="${esc(v)}">${esc(v)}<small>${bankOf(v).replace("m","")}</small></button>`).join("")}</div>`;
   $("#vn-pick").onclick=e=>{const b=e.target.closest("button[data-v]");if(!b)return;store.set("venue",b.dataset.v);showVenue();setTimeout(()=>$("#vn-body").scrollIntoView({behavior:"smooth"}),50)};
   if(!cur){$("#vn-body").innerHTML="";return}
   const bank=bankOf(cur);const base={cls};
@@ -444,13 +461,12 @@ async function showVenue(){
   const cmp=(label,k,fmt=pc)=>{const d=(V[k]!=null&&B[k]!=null&&fmt===pc)?V[k]-B[k]:0;return `<tr><td>${label}</td><td class="n"><span class="${Math.abs(d)>=8?(d>0?"up":"down"):""}">${fmt(V[k])}</span></td><td class="n">${fmt(B[k])}</td></tr>`};
   let h=`<div class="card"><div class="chips"><h2>${esc(cur)}</h2><span class="chip">${bank}</span><a class="btn" style="margin-left:auto" href="${editURL("venues",cur,`# ${cur}\n`)}" target="_blank" rel="noopener">特徴を書き込む</a></div>
     ${memo?`<div class="memo">${esc(memo)}</div>`:`<div class="muted">まだ特徴が書かれていません</div>`}
-    <label class="muted">級 <select id="vn-cls">${["男子","S級","A級","チャレンジ"].map(o=>`<option${o===cls?" selected":""}>${o}</option>`).join("")}</select></label>
     <div class="tw"><table><thead><tr><th></th><th>${esc(cur)}（${V.n}）</th><th>${bank}平均（${B.n}）</th></tr></thead><tbody>
     ${cmp("Sライン3着内","s_top3")}${cmp("Sライン1着","s_win")}${cmp("Sラインが主導権","tsu")}${cmp("逃げ","nige")}${cmp("捲り","makuri")}${cmp("差し","sashi")}${cmp("◎ライン1着","hon")}${cmp("万車券率","man")}${cmp("3連単中央値","tri",yen)}
-    </tbody></table></div><div class="muted">7車立て。周長の平均との差が±8ポイント以上で色付け${V.n<30?"。この場はまだ件数が少ないので参考値です":""}</div></div>`;
+    </tbody></table></div><div class="muted">S級・7車立て。周長の平均との差が±8ポイント以上で色付け${V.n<30?"。この場はまだ件数が少ないので参考値です":""}</div></div>`;
   h+=vr.length?statsHTML(computeStats(vr)):"";
   $("#vn-body").innerHTML=h;
-  $("#vn-cls").onchange=e=>{store.set("vcls",e.target.value);showVenue()};}
+}
 
 /* ---------- 選手 ---------- */
 let RF=store.get("rf","today");
