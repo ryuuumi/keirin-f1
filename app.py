@@ -44,7 +44,7 @@ def meta():
                    oldest=min((d["date"] for d in ds), default=None),
                    categories=kd.CATEGORY_ORDER, banks=an.BANKS,
                    bank333=sorted(an.BANK_333), bank500=sorted(an.BANK_500),
-                   types=["三分戦", "二分戦", "二分戦コマ切れ", "その他", "超コマ切れ"],
+                   types=an.LINE_TYPES,
                    shapes=sorted({d["shape"] for d in ds}, key=lambda s: (-sum(map(int, s.split("-"))), s)))
 
 

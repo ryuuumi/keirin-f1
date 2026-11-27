@@ -43,6 +43,9 @@ def line_type(lines: list[list[int]]) -> str:
     if multi == 3 and single <= 1:
         return "三分戦"
     if multi == 2 and single <= 1:
+        shape = line_shape(lines)
+        if shape in ("4-3", "3-3-1"):
+            return f"二分戦({shape})"
         return "二分戦"
     if multi == 2:
         return "二分戦コマ切れ"
@@ -51,6 +54,28 @@ def line_type(lines: list[list[int]]) -> str:
     if multi >= 4 or (multi == 3 and single >= 2):
         return "超コマ切れ"
     return "超コマ切れ"
+
+
+LINE_TYPES = ["三分戦", "二分戦(4-3)", "二分戦(3-3-1)", "二分戦", "二分戦コマ切れ", "その他", "超コマ切れ"]
+LEADER_TYPES = ["先行型", "先行型(叩かれ)", "捲り型", "自在型", "追込型"]
+
+
+def leader_type(nk: dict | None) -> str | None:
+    """netkeirin の直近4か月の回数から選手のタイプを決める（境目はここで調整）"""
+    if not nk:
+        return None
+    n = max(1, nk.get("r1", 0) + nk.get("r2", 0) + nk.get("r3", 0) + nk.get("rx", 0))
+    h, b = nk.get("h", 0) / n, nk.get("b", 0) / n
+    nige, makuri = nk.get("nige", 0), nk.get("makuri", 0)
+    if b >= 0.30:
+        return "先行型"
+    if h >= 0.25:
+        return "先行型(叩かれ)"
+    if makuri > nige and (nige + makuri) / n >= 0.12:
+        return "捲り型"
+    if h + b >= 0.08 or (nige + makuri) / n >= 0.08:
+        return "自在型"
+    return "追込型"
 
 
 def mark_tag(marks: list[str]) -> str:
@@ -108,6 +133,7 @@ def derive(race: dict) -> dict | None:
             key=line_key(len(cars), marks, is_s),
             key_nos=line_key(len(cars), marks, False),
             key_size=f"{size_bucket(len(cars))}{'S' if is_s else ''}",
+            leader=leader_type(riders[cars[0]].get("nk")) if len(cars) >= 1 else None,
             label=line_label(len(cars), marks, is_s),
             is_s=is_s, is_b=i == b_line,
             win=bool(top) and top[0] in cars,
@@ -178,9 +204,27 @@ def derive(race: dict) -> dict | None:
         six=rider_info(6) if six else None,
         lowest=rider_info(lowest[0]) if len(lowest) == 1 else None,
         mark_sig=tuple(sorted(l["key_nos"] for l in L)),
+        lead_sig=tuple(sorted(f"{l['key_nos']}{l['leader']}" for l in L)),
+        s_leader=L[s_line]["leader"] if s_line is not None else None,
+        cars=dict(m={c: r.get("mark", "") for c, r in riders.items() if r.get("mark")},
+                  s=next((c for c, r in riders.items() if "S" in (r.get("sb") or "")), None),
+                  b=next((c for c, r in riders.items() if "B" in (r.get("sb") or "")), None),
+                  rank={c: r.get("rank_text") or "" for c, r in riders.items()}),
+        rider_keys=[(rider_key(r), c) for c, r in riders.items()],
+        venue_code=race["race_id"][:2], day_no=race.get("day_no"), run_date=race["date"],
         hon_line=next((l for l in L if "◎" in l["marks"]), None),
         tai_line=next((l for l in L if "○" in l["marks"]), None),
     )
+
+
+def rider_key(r: dict) -> str:
+    nk = r.get("nk") or {}
+    return f"nk{nk['nk_id']}" if nk.get("nk_id") else f"nm{r.get('name', '').replace(' ', '')}"
+
+
+def digest_url(d: dict) -> str:
+    return (f"https://keirin.kdreams.jp/stadium/digest/?kyogijoCd={d['venue_code']}"
+            f"&kaisaiDate={d['run_date'].replace('-', '')}&gradeCd=2&raceNo={d['race_no']}")
 
 
 def derive_all(races: list[dict]) -> list[dict]:
@@ -213,6 +257,7 @@ def avg(xs):
 
 def link(d):
     return dict(id=d["id"], cat=f"{d['cls']}{d['category']}", url=d["url"], text=f"{d['venue']} {d['date'][5:].replace('-', '/')} {d['race_no']}R",
+                video=digest_url(d), L=d["lines"], cars=d["cars"],
                 lines=d["line_str"], tri=d["tri_yen"], combo=d["tri_combo"])
 
 
@@ -373,22 +418,25 @@ def venues(ds):
 
 
 # ------------------------------------------------------------ 当日レースとの照合
-def describe_today(lines, marks: dict, s_line: int | None):
+def describe_today(lines, marks: dict, s_line: int | None, leaders=None):
     L = []
     for i, cars in enumerate(lines):
         ms = [marks.get(c, "") for c in cars]
         L.append(dict(idx=i, cars=cars, size=len(cars), marks=ms,
+                      key_nos=line_key(len(cars), ms, False),
+                      leader=(leaders or {}).get(cars[0]),
                       key=line_key(len(cars), ms, i == s_line),
                       key_size=f"{size_bucket(len(cars))}{'S' if i == s_line else ''}",
                       label=line_label(len(cars), ms, i == s_line), is_s=i == s_line))
     return L
 
 
-def match(ds, lines, marks, s_line, category=None, cls=None, venue=None, min_n=20):
+def match(ds, lines, marks, s_line, category=None, cls=None, venue=None, min_n=20,
+          same_category=False, leaders=None):
     """当日の並び＋Sを取るラインを指定して、同じ型の過去レースを探す。
     「同じ周長」「この場」「全場」の3つの範囲で、それぞれ件数が少なければ条件を段階的にゆるめる。"""
     lines = [l for l in lines if l]
-    TL = describe_today(lines, marks, s_line)
+    TL = describe_today(lines, marks, s_line, leaders)
     shape, typ = line_shape(lines), line_type(lines)
     n_cars = sum(len(l) for l in lines)
     s_key = TL[s_line]["key"] if s_line is not None else None
@@ -396,12 +444,15 @@ def match(ds, lines, marks, s_line, category=None, cls=None, venue=None, min_n=2
     base = [d for d in ds if d["n_cars"] == n_cars]
     if cls:  # S級はS級だけ、A級はA級だけ（チャレンジ・ガールズもそれぞれだけ）で照合
         base = [d for d in base if d["cls"] == cls]
+    if same_category and category:
+        base = [d for d in base if d["category"] == category]
+    t_lead = tuple(sorted(f"{l['key_nos']}{l['leader']}" for l in TL))
+    has_lead = any(l["leader"] for l in TL)
 
     t_sig = tuple(sorted(line_key(l["size"], l["marks"], False) for l in TL))
 
-    levels = [
-        ("並び・印・番組まで一致", lambda d: d["shape"] == shape and d["mark_sig"] == t_sig and d["category"] == category),
-        ("並び・印が一致（番組問わず）", lambda d: d["shape"] == shape and d["mark_sig"] == t_sig),
+    levels = ([("並び・印・先頭タイプが一致", lambda d: d["shape"] == shape and d["lead_sig"] == t_lead)] if has_lead else []) + [
+        ("並び・印が一致", lambda d: d["shape"] == shape and d["mark_sig"] == t_sig),
         ("並びの形が一致", lambda d: d["shape"] == shape),
         ("ライン区分が一致", lambda d: d["type"] == typ),
         ("ライン区分が一致（Sは車数のみ）", lambda d: d["type"] == typ),
@@ -429,7 +480,8 @@ def match(ds, lines, marks, s_line, category=None, cls=None, venue=None, min_n=2
     if venue:
         scopes["venue"] = dict(name=venue, **search([d for d in base if d["venue"] == venue], min(min_n, 10)))
     scopes["all"] = dict(name="全場", **search(base, min_n))
-    return dict(today=dict(lines=TL, shape=shape, type=typ, s_key=s_key, n_cars=n_cars, bank=bank, cls=cls),
+    return dict(today=dict(lines=TL, shape=shape, type=typ, s_key=s_key, n_cars=n_cars, bank=bank, cls=cls,
+                           category=category if same_category else None),
                 scopes=scopes, default="bank" if bank else "all")
 
 

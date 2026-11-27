@@ -47,6 +47,9 @@ def main():
         first = store.first_day(con)
         # 最古の日は途中で止まっている可能性があるので含めて見直す（取得済みは飛ばす）
         end = date.fromisoformat(first) if first else today - timedelta(days=1)
+        # まず取り込み済みのレースに netkeirin の値（H・B回数、選手ID）を足す
+        enriched = store.enrich_missing(con, deadline=deadline if end < since else time.time() + a.minutes * 30)
+        store.dump_jsonl(con, enriched)
         if end < since:
             print("さかのぼる日はもうありません")
             return
@@ -67,8 +70,9 @@ def main():
         mode_site = True
 
     if mode_site:
-        ds = an.derive_all(store.load_races(con))
-        site_builder.build_site(ds, [today, today + timedelta(days=1)])
+        raw = store.load_races(con)
+        ds = an.derive_all(raw)
+        site_builder.build_site(ds, [today, today + timedelta(days=1)], races_raw={r["race_id"]: r for r in raw})
         print("ページを書き出しました")
 
 

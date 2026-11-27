@@ -50,3 +50,12 @@
 PCのアプリとデータを共有したいとき：
 - PC → GitHub：`python store.py dump` で `races/` に書き出してアップロード
 - GitHub → PC：`races/` をダウンロードして `python store.py load`
+
+## 追加データ（netkeirin）
+- netkeirin（keirin.netkeiba.com）の出走表から、選手ID と 直近4か月の S・H・B・逃げ・捲り・差し・マーク回数を取り込みます（`nk_scraper.py`）
+- 先頭タイプ（先行型・先行型(叩かれ)・捲り型・自在型・追込型）の境目は `analysis.py` の `leader_type` で調整できます
+- 取り込み済みのレースには「過去データの取り込み」が少しずつ値を足します
+
+## メモ（notes/）
+- 競輪場の特徴：`notes/venues/<競輪場名>.md`、選手のS評価とメモ：`notes/riders/<選手キー>.md`
+- スマホのページの「書き込む」からGitHubの編集画面が開きます。保存すると「メモの反映」が動き、数分でページに出ます

@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import kd_scraper as kd
+import nk_scraper as nk
 
 DB_PATH = Path(__file__).with_name("data") / "keirin.sqlite3"
 _lock = threading.Lock()
@@ -96,6 +97,31 @@ def first_day(con) -> str | None:
         return con.execute("SELECT MIN(date) FROM races WHERE has_result=1").fetchone()[0]
 
 
+def enrich_missing(con, deadline=None, log=print) -> set[str]:
+    """netkeirin の値がまだないレースに足す（新しい順）。足した日の集合を返す。"""
+    import time as _t
+    import nk_scraper as nk
+    todo = [r for r in load_races(con) if not r.get("nk_checked") and not any(x.get("nk") for x in r["riders"])]
+    todo.sort(key=lambda r: r["date"], reverse=True)
+    days = set()
+    done = 0
+    for i, r in enumerate(todo):
+        if deadline and _t.time() > deadline:
+            break
+        done += 1
+        nk.enrich_dict(r)
+        r["url"] = r.get("url")
+        with _lock:
+            con.execute("UPDATE races SET data=? WHERE race_id=?", (json.dumps(r, ensure_ascii=False), r["race_id"]))
+            if i % 50 == 0:
+                con.commit()
+        days.add(r["date"])
+    with _lock:
+        con.commit()
+    log(f"netkeirin の値を {done} レースに追加（残り {len(todo) - done} レース）")
+    return days
+
+
 # ------------------------------------------------------------ 一括取得
 class Progress:
     def __init__(self):
@@ -145,6 +171,7 @@ def collect(start: date, end: date, con=None, grades=("F1",), log=print, deadlin
             try:
                 r = kd.fetch_race(rid, slug)
                 if r and r.has_result:
+                    nk.enrich(r)
                     save_race(con, r)
                     progress.added += 1
             except Exception as e:  # 1レースの失敗で止めない

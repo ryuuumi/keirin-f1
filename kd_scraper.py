@@ -106,6 +106,11 @@ class Rider:
     sb: str = ""            # S / B
     kimarite: str = ""      # 逃/捲/差/マ
     agari: str = ""
+    pref: str = ""          # 府県
+    age: int | None = None
+    term: int | None = None  # 期別
+    klass: str = ""         # 級班 A1 など
+    nk: dict | None = None  # netkeirin の選手ID と 直近4か月の S/H/B/決まり手回数
 
 
 @dataclass
@@ -273,8 +278,17 @@ def parse_race(html: str, race_id: str, venue_slug: str) -> Race | None:
             name = nfkc(rider.contents[0] if rider.contents else rider.get_text())
             tip = tr.find("td", class_="tip")
             r = Rider(car=car, name=name, mark=nfkc(tip.get_text()) if tip else "")
+            home = rider.find("span", class_="home")
+            if home:
+                parts = nfkc(home.get_text()).replace(" ", "").split("/")
+                if len(parts) >= 3:
+                    r.pref = parts[0]
+                    r.age = int(parts[1]) if parts[1].isdigit() else None
+                    r.term = int(parts[2]) if parts[2].isdigit() else None
             after = rider.find_next_siblings("td")
             texts = [nfkc(td.get_text()) for td in after]
+            if texts:
+                r.klass = texts[0]
             if len(texts) > 1:
                 r.style = texts[1]
             for tx in texts:
