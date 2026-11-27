@@ -31,6 +31,17 @@ def fetch_stats(run_date: str, venue_code: str, race_no: int) -> dict[int, dict]
     tbl = soup.find("table", id="RaceCard_Table_Fixed")
     if not tbl:
         return {}
+    # 府県・期別は別の表（tr#player-<車番> の dd.PlayerFrom / dd.PlayerClass）
+    prof = {}
+    for dd in soup.find_all("dd", class_="PlayerFrom"):
+        tr = dd.find_parent("tr")
+        m = re.match(r"player-(\d+)", (tr.get("id") or "") if tr else "")
+        if not m:
+            continue
+        pref = kd.nfkc(dd.find("span").get_text()) if dd.find("span") else kd.nfkc(dd.get_text()).split(" ")[0]
+        cls_dd = dd.find_next_sibling("dd", class_="PlayerClass")
+        term = re.search(r"(\d+)期", kd.nfkc(cls_dd.get_text())) if cls_dd else None
+        prof[int(m.group(1))] = dict(pref=pref, term=int(term.group(1)) if term else None)
     out = {}
     for tr in tbl.find_all("tr", class_="PlayerList"):
         tds = tr.find_all("td")
@@ -48,6 +59,7 @@ def fetch_stats(run_date: str, venue_code: str, race_no: int) -> dict[int, dict]
             nums.append(int(t) if t.isdigit() else 0)
         d = dict(zip(FIELDS, nums))
         d["nk_id"] = m.group(1) if m else None
+        d.update(prof.get(car, {}))
         out[car] = d
     return out
 
@@ -75,10 +87,12 @@ def enrich_dict(race: dict) -> bool:
         return False
     if not st:
         race["nk_checked"] = True
+        race["nk_v"] = 2
         return False
     for r in race["riders"]:
         x = st.get(r["car"])
         if x:
             r["nk"] = x
     race["nk_checked"] = True
+    race["nk_v"] = 2
     return True

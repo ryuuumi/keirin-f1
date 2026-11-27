@@ -140,6 +140,26 @@ input[type=search]{width:100%;padding:8px 10px;font-size:16px}
 .bottom a{flex:1;text-align:center;padding:12px 0;font-weight:700;color:var(--muted);font-size:.85rem;text-decoration:none}
 .bottom a.on{color:var(--accent)}
 section[hidden]{display:none!important}
+.lcol,.rcol{display:flex;flex-direction:column;gap:10px;min-width:0}
+.rd .pf{color:var(--muted)}
+.rd .pf.loc{color:var(--accent);font-weight:700}
+.tags{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;min-height:1em}
+.tag{font-size:.6rem;font-weight:700;border-radius:3px;padding:0 4px;border:1px solid var(--accent);color:var(--accent);white-space:nowrap}
+.tag.w{border-color:var(--warn);color:var(--warn)}
+.card.pcbar{flex-direction:row;flex-wrap:wrap;gap:6px;align-items:center}
+.pcbar input,.manual input,.manual select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+.manual{display:flex;flex-direction:column;gap:6px}
+.manual .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.btn.fill{background:var(--accent);color:var(--panel)}
+button.btn{background:var(--panel);font-family:inherit;cursor:pointer}
+button.btn.fill{background:var(--accent)}
+@media (min-width:900px){
+  .phone{max-width:1180px}
+  #today:not([hidden]){display:grid;grid-template-columns:430px minmax(0,1fr);gap:14px;align-items:start}
+  .rcol:empty{display:none}
+  .bottom div{max-width:1180px}
+  .sheet{max-width:680px;border-radius:14px 14px 0 0}
+}
 section{display:flex;flex-direction:column;gap:10px}
 </style>
 </head>
@@ -148,10 +168,15 @@ section{display:flex;flex-direction:column;gap:10px}
   <header><h1>F1ライン分析</h1><span class="muted" id="upd"></span></header>
 
   <section id="today">
-    <div class="tabs" id="days"></div>
-    <div class="scroll" id="venues"></div>
-    <div class="rgrid" id="races"></div>
-    <div id="race"></div>
+    <div class="lcol">
+      <div class="card pcbar" id="pcbar" hidden></div>
+      <div class="tabs" id="days"></div>
+      <div class="scroll" id="venues"></div>
+      <div class="rgrid" id="races"></div>
+      <div id="race"></div>
+      <div class="card manual" id="manual" hidden></div>
+    </div>
+    <div class="rcol" id="rr"></div>
   </section>
 
   <section id="trend" hidden>
@@ -225,19 +250,22 @@ async function loadDay(i){const d=META.days[i];if(!DAYS[d])DAYS[d]=await getJSON
 function dayLabel(d,i){const [y,m,dd]=d.split("-");return `${i===0?"今日":i===1?"明日":""} ${+m}/${+dd}`}
 async function showToday(){
   $("#days").innerHTML=META.days.map((d,i)=>`<button class="${i===st.day?"on":""}" data-i="${i}">${dayLabel(d,i)}</button>`).join("");
+  $("#rr").innerHTML="";
+  if(META.pc&&!DAYS[META.days[st.day]])$("#race").innerHTML=`<div class="card empty">読み込み中…（このPCで分析するときは1〜3分かかります）</div>`;
   let D;try{D=await loadDay(st.day)}catch(e){$("#race").innerHTML=`<div class="card empty">データを読み込めませんでした</div>`;return}
-  if(!D.venues.length){$("#venues").innerHTML="";$("#races").innerHTML="";$("#race").innerHTML=`<div class="card empty">この日のF1開催はありません（または出走表がまだ出ていません）</div>`;return}
+  if(!D.venues.length){$("#venues").innerHTML="";$("#races").innerHTML="";$("#manual").hidden=true;$("#race").innerHTML=`<div class="card empty">この日のF1開催はありません（または出走表がまだ出ていません）</div>`;return}
   if(st.venue>=D.venues.length)st.venue=0;
   $("#venues").innerHTML=D.venues.map((v,i)=>`<button class="pill ${i===st.venue?"on":""}" data-i="${i}">${esc(v.venue)}<small>${v.bank.replace("m","")}</small></button>`).join("");
   const V=D.venues[st.venue];
   if(st.race>=V.races.length)st.race=0;
   $("#races").innerHTML=V.races.map((r,i)=>`<button class="${i===st.race?"on":""}" data-i="${i}">${r.no}R</button>`).join("");
-  showRace(D,V,V.races[st.race]);
+  showRace(D,V,st.manual||V.races[st.race]);
+  if(META.pc)showManual(D,V,V.races[st.race]);
   store.set("pos",{day:META.days[st.day],venue:V.venue,race:st.race});
 }
-$("#days").onclick=e=>{const b=e.target.closest("button");if(!b)return;st.day=+b.dataset.i;st.venue=0;st.race=0;st.s="n";st.scope=null;showToday()};
-$("#venues").onclick=e=>{const b=e.target.closest("button");if(!b)return;st.venue=+b.dataset.i;st.race=0;st.s="n";st.scope=null;showToday()};
-$("#races").onclick=e=>{const b=e.target.closest("button");if(!b)return;st.race=+b.dataset.i;st.s="n";st.scope=null;showToday()};
+$("#days").onclick=e=>{const b=e.target.closest("button");if(!b)return;st.day=+b.dataset.i;st.venue=0;st.race=0;st.s="n";st.scope=null;st.manual=null;showToday()};
+$("#venues").onclick=e=>{const b=e.target.closest("button");if(!b)return;st.venue=+b.dataset.i;st.race=0;st.s="n";st.scope=null;st.manual=null;showToday()};
+$("#races").onclick=e=>{const b=e.target.closest("button");if(!b)return;st.race=+b.dataset.i;st.s="n";st.scope=null;st.manual=null;showToday()};
 
 function showRace(D,V,R){
   const RD=Object.fromEntries(R.riders.map(r=>[r.car,r]));
@@ -245,47 +273,74 @@ function showRace(D,V,R){
   const shape=R.lines.map(l=>l.length).sort((a,b)=>b-a).join("-");
   const sIdx=st.s==="n"?null:+st.s;
   let h=`<div class="card">
-    <div style="display:flex;align-items:baseline;gap:8px"><h2>${esc(V.venue)} ${R.no}R ${esc(R.cat)}</h2><a class="muted" href="${R.url}" target="_blank" rel="noopener" style="margin-left:auto;color:var(--accent)">出走表</a></div>
+    <div style="display:flex;align-items:baseline;gap:8px"><h2>${esc(V.venue)} ${R.no}R ${esc(R.cat)}</h2><span style="margin-left:auto"></span>${META.pc&&R.rid&&!R.manual?`<button class="btn" id="pc-rebuild">最新の並びで作り直す</button>`:""}${R.manual?`<button class="btn" id="pc-unmanual">手入力をやめる</button>`:""}${R.url?`<a class="muted" href="${R.url}" target="_blank" rel="noopener" style="color:var(--accent)">出走表</a>`:""}</div>
     <div class="chips"><span class="chip">${V.bank}</span><span class="chip">${esc(R.cls)}</span><span class="chip">${esc(R.category)}</span>${R.type?`<span class="chip">${esc(R.type.startsWith("二分戦(")?R.type:R.type+" "+shape)}</span>`:""}${low?`<span class="chip hot">最低得点 ${R.riders.filter(r=>r.score===low).map(r=>r.car+"番").join("")}</span>`:""}</div>`;
   if(R.res)h+=`<button class="tog ${st.same?"on":""}" id="tog-same"><span class="sw"></span>同じ種別（${esc(R.category)}）だけで照合</button>`;
   if(R.lines.length){
-    h+=`<div class="lines">${R.lines.map((l,i)=>{const ld=RD[l[0]]?.type;return `<div class="ln ${sIdx===i?"s":""}" data-i="${i}" role="button" tabindex="0">${ld&&l.length>0?`<span class="ltype">${esc(ld)}</span>`:""}<div class="cars">${l.map(c=>{const r=RD[c]||{};const sh=r.st?`H${r.st[1]} B${r.st[2]}`:(r.score??"");return `<div class="rd"><span class="mk">${esc(r.mark||"")}</span>${car(c)}<button class="nm" data-key="${esc(r.key||"")}" data-car="${c}">${esc((r.name||"").split(/\s/)[0])}</button><span class="${r.score===low?"low":""}">${sh}</span></div>`}).join("")}</div><span class="stag">${sIdx===i?"S":""}</span></div>`}).join("")}</div>
-      <div class="hint">ラインをタップでSを切り替え・名前をタップで選手の過去レース</div>`;
+    h+=`<div class="lines">${R.lines.map((l,i)=>{const ld=RD[l[0]]?.type;return `<div class="ln ${sIdx===i?"s":""}" data-i="${i}" role="button" tabindex="0">${ld&&l.length>0?`<span class="ltype">${esc(ld)}</span>`:""}<div class="cars">${l.map(c=>{const r=RD[c]||{};const sh=r.st?`H${r.st[1]} B${r.st[2]}`:(r.score??"");return `<div class="rd"><span class="mk">${esc(r.mark||"")}</span>${car(c)}${r.name?`<button class="nm" data-key="${esc(r.key||"")}" data-car="${c}">${esc((r.name||"").split(/\s/)[0])}</button>`:""}${r.pref?`<span class="pf ${r.pref===R.vpref?"loc":""}">${esc(r.pref)}</span>`:""}<span class="${r.score===low?"low":""}">${sh}</span></div>`}).join("")}</div>${tagsHTML(R.tags&&R.tags[i])}<span class="stag">${sIdx===i?"S":""}</span></div>`}).join("")}</div>
+      <div class="hint">ラインをタップでSを切り替え・名前をタップで選手の過去レース<br>札：同県＝同じ府県が2人以上／地元＝開催場の県の選手がいる（緑字）／番手自力＝番手がH・Bを2回以上</div>`;
   }
-  if(!R.res){h+=`<div class="empty">${R.cls==="ガールズ"?"ガールズは分析の対象外です":"並び予想がまだ出ていません"}</div></div>`;$("#race").innerHTML=h;bindRace(D,V,R);return}
+  if(!R.res){h+=`<div class="empty">${R.cls==="ガールズ"?"ガールズは分析の対象外です":"並び予想がまだ出ていません"}${META.pc&&R.cls!=="ガールズ"?"。下の「並びを手入力」で分析できます":""}</div></div>`;$("#race").innerHTML=h;$("#rr").innerHTML="";bindRace(D,V,R);return}
   const res=R.res[st.s+(st.same?"":"a")]||R.res[st.same?"n":"na"];
   if(!st.scope||!res.scopes[st.scope])st.scope=res.default;
   const a=res.scopes[st.scope];
   h+=`<div class="seg">${["bank","venue","all"].filter(k=>res.scopes[k]).map(k=>`<button data-k="${k}" class="${k===st.scope?"on":""}">${esc(res.scopes[k].name)} ${res.scopes[k].n}件</button>`).join("")}</div>`;
-  if(!a.n){h+=`<div class="empty">この範囲には同じ型の過去レースがありません${st.same?"。「同じ種別だけ」を外すと増えます":""}</div></div>`;$("#race").innerHTML=h;bindRace(D,V,R);return}
+  if(!a.n){h+=`<div class="empty">この範囲には同じ型の過去レースがありません${st.same?"。「同じ種別だけ」を外すと増えます":""}</div></div>`;$("#race").innerHTML=h;$("#rr").innerHTML="";bindRace(D,V,R);return}
   const k=a.kimarite||{};
   h+=`<div class="kpi">
       <div><span>3連単 中央値</span><b>${yen(a.tri_med)}</b></div>
       <div class="hot"><span>万車券率</span><b>${pc(a.manken)}</b></div>
-      <div><span>Sライン突っ張り</span><b>${pc(a.tsuppari)}</b></div>
+      <div><span>Sラインが主導権（B）</span><b>${pc(a.tsuppari)}</b></div>
       <div><span>決まり手</span><b style="font-size:.85rem">逃${pc(k["逃"])} 捲${pc(k["捲"])} 差${pc(k["差"])}</b></div></div>
     <div class="muted">照合：${esc(a.level)}・${esc(R.cls)}${st.same?"・"+esc(R.category):""}のみ${sIdx==null?"（Sは指定なし）":""}</div></div>`;
+  const head=h;h="";
   const ref=id=>D.refs[id];
   const patRows=(rows,hot)=>rows.map(t=>`<div class="pat"><div class="top">${comboHTML(t.c)}<div class="num"><b>${t.n}件</b><br><span class="${(hot||t.m>=10000)?"hot-t":""}">${hot?"最高 "+yen(t.x):"中央値 "+yen(t.m)}</span></div></div>
       <div class="txt">${esc(t.p)}</div><div class="lk">${t.r.map(id=>{const x=ref(id);return x?`<a href="${x[2]}" target="_blank" rel="noopener">${esc(x[0])}</a>`:""}).join("")}${t.n>t.r.length?`<span class="muted">他${t.n-t.r.length}件</span>`:""}</div></div>`).join("");
   h+=`<div class="card"><h2>多い着順（当日の車番）</h2>${a.tri.length?patRows(a.tri):`<div class="muted">当日の車番に置き換えられる着順がありません</div>`}
       <div class="muted">過去レースの1〜3着を「どのラインの何番手か」に直して置き換え（${a.n_conv}/${a.n}件）</div></div>`;
   h+=`<div class="card"><h2>ラインごとの成績</h2><table><thead><tr><th>ライン</th><th>1着</th><th>3着内</th><th>主導権</th></tr></thead><tbody>
-      ${R.lines.map((l,i)=>`<tr><td>${l.map(c=>car(c)).join("")}${sIdx===i?" S":""}</td><td class="n">${pc(a.lines[i]?.win)}</td><td class="n">${pc(a.lines[i]?.top3)}</td><td class="n">${pc(a.lines[i]?.lead)}</td></tr>`).join("")}
+      ${R.lines.map((l,i)=>`<tr><td>${l.map(c=>car(c)).join("")}${sIdx===i?" S":""}${tagsHTML(R.tags&&R.tags[i],true)}</td><td class="n">${pc(a.lines[i]?.win)}</td><td class="n">${pc(a.lines[i]?.top3)}</td><td class="n">${pc(a.lines[i]?.lead)}</td></tr>`).join("")}
       </tbody></table>
       ${a.exacta.length?`<h3>2車単の参考</h3><table><tbody>${a.exacta.map(x=>`<tr><td>${comboHTML(x[0],"")}</td><td class="n">${x[1]}件</td><td class="n">3連単中央値 ${yen(x[2])}</td></tr>`).join("")}</tbody></table>`:""}</div>`;
   h+=`<div class="card"><h2>万車券になったときの着順</h2>${a.manken_tri.length?patRows(a.manken_tri,true):`<div class="muted">万車券はありませんでした</div>`}</div>`;
   h+=`<div class="card"><div style="display:flex;align-items:baseline;gap:8px"><h2>該当レース（直近${a.races.length}レース）</h2><span class="muted" style="margin-left:auto">新しい順</span></div>
     <div class="muted">車番の上＝予想印、下＝S・B</div>
     <div class="hist">${a.races.map(id=>{const x=ref(id);return x?histRow(x):""}).join("")}</div></div>`;
-  $("#race").innerHTML=h;bindRace(D,V,R);
+  $("#race").innerHTML=head;$("#rr").innerHTML=h;bindRace(D,V,R);
 }
 function bindRace(D,V,R){
   document.querySelectorAll("#race .ln").forEach(b=>b.onclick=e=>{if(e.target.closest(".nm"))return;const i=b.dataset.i;st.s=st.s===i?"n":i;showRace(D,V,R)});
   document.querySelectorAll("#race .nm").forEach(b=>b.onclick=e=>{e.stopPropagation();const r=R.riders.find(x=>x.car==b.dataset.car);openRider(r.key,r)});
   document.querySelectorAll("#race .seg button").forEach(b=>b.onclick=()=>{st.scope=b.dataset.k;showRace(D,V,R)});
   const t=$("#tog-same");if(t)t.onclick=()=>{st.same=!st.same;store.set("same",st.same);showRace(D,V,R)};
+  const rb=$("#pc-rebuild");if(rb)rb.onclick=async()=>{rb.disabled=true;rb.textContent="作り直し中…";
+    try{const x=await getJSON(`api/race?rid=${R.rid}&slug=${R.slug}&venue=${encodeURIComponent(V.venue)}`);Object.assign(D.refs,x.refs);V.races[st.race]=x.item;st.s="n";st.scope=null;showToday()}
+    catch(e){rb.textContent="作り直せませんでした";}};
+  const um=$("#pc-unmanual");if(um)um.onclick=()=>{st.manual=null;st.s="n";st.scope=null;showToday()};
 }
+
+function tagsHTML(t,inline){if(!t)return inline?"":`<div class="tags"></div>`;const x=[];if(t.same)x.push(`<span class="tag">同県</span>`);if(t.local)x.push(`<span class="tag">地元</span>`);if(t.jiriki)x.push(`<span class="tag w">番手自力</span>`);
+  return inline?(x.length?" "+x.join(" "):""):`<div class="tags">${x.join("")}</div>`}
+
+/* ---------- PCだけ：日付の選択・並びの手入力 ---------- */
+function showPcBar(){if(!META.pc)return;const bar=$("#pcbar");bar.hidden=false;
+  bar.innerHTML=`<span class="muted">開催日</span><input type="date" id="pc-date" value="${META.days[st.day]||""}"><button class="btn" id="pc-load">この日の出走表を読み込む</button>`;
+  $("#pc-load").onclick=()=>{const d=$("#pc-date").value;if(!d)return;let i=META.days.indexOf(d);if(i<0){META.days.push(d);i=META.days.length-1}st.day=i;st.venue=0;st.race=0;st.s="n";st.scope=null;st.manual=null;showToday()};}
+function showManual(D,V,R){const box=$("#manual");box.hidden=false;
+  const cats=["予選","初日特選","準決勝","一般","選抜","特選","決勝"],clss=["S級","A級","チャレンジ"];
+  const cur=st.manual||R;
+  box.innerHTML=`<h3>並びを手入力（${esc(V.venue)}）</h3>
+    <div class="row"><input id="mn-lines" placeholder="並び 例：42-175-63" size="14" value="${esc((cur.lines||[]).map(l=>l.join("")).join("-"))}">
+      <input id="mn-marks" placeholder="印 例：4◎ 2○ 5▲" size="14" value="${esc((cur.riders||[]).filter(r=>r.mark).map(r=>r.car+r.mark).join(" "))}"></div>
+    <div class="row"><select id="mn-cat">${cats.map(c=>`<option${c===R.category?" selected":""}>${c}</option>`).join("")}</select>
+      <select id="mn-cls">${clss.map(c=>`<option${c===R.cls?" selected":""}>${c}</option>`).join("")}</select>
+      <button class="btn fill" id="mn-go">この並びで分析</button></div>
+    <div class="muted" id="mn-msg">並びが変わったとき・並び予想がまだ出ていないときに。選手名や回数は今の出走表のものを使います</div>`;
+  $("#mn-go").onclick=async()=>{$("#mn-msg").textContent="分析中…";
+    try{const r=await fetch("api/manual",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({venue:V.venue,no:R.no,url:R.url,rid:R.rid,lines:$("#mn-lines").value,marks:$("#mn-marks").value,category:$("#mn-cat").value,cls:$("#mn-cls").value,riders:R.riders})});
+      const x=await r.json();if(!r.ok)throw new Error(x.error||r.status);Object.assign(D.refs,x.refs);x.item.rid=R.rid;st.manual=x.item;st.s="n";st.scope=null;showToday();window.scrollTo({top:0,behavior:"smooth"})}
+    catch(e){$("#mn-msg").textContent="分析できませんでした："+e.message}};}
 
 /* ---------- 選手画面 ---------- */
 async function openRider(key,today){
@@ -316,7 +371,7 @@ function bindSheet(){const bg=$("#sheet .sheet-bg");if(!bg)return;
   bg.onclick=e=>{if(e.target===bg||e.target.closest(".close"))$("#sheet").innerHTML=""};}
 
 /* ---------- 傾向（ページ側で集計） ---------- */
-async function loadTrend(){if(!TREND){TREND=await getJSON("data/trend.json");TREND.ix=Object.fromEntries(TREND.cols.map((c,i)=>[c,i]))}return TREND}
+async function loadTrend(){if(!TREND){TREND=await getJSON("data/trend.json");TREND.ix=Object.fromEntries(TREND.cols.map((c,i)=>[c,i]));TREND.lix=Object.fromEntries(TREND.lcols.map((c,i)=>[c,i]));TREND.rows.forEach((r,i)=>r.__i=i)}return TREND}
 const bankOf=v=>TREND.bank333.includes(v)?"333m":TREND.bank500.includes(v)?"500m":"400m";
 function filterRows(f){const I=TREND.ix;return TREND.rows.filter(r=>{
   if(r[I.n]!==7)return false;
@@ -339,17 +394,23 @@ function computeStats(rows){const I=TREND.ix;const n=rows.length;
   const kim=[...groupBy(rows.filter(r=>r[I.kim]),r=>r[I.type])].map(([k,v])=>({k,n:v.length,...Object.fromEntries(["逃","捲","差","マ"].map(x=>[x,pct(v.filter(r=>r[I.kim]===x).length,v.length)]))})).sort((a,b)=>TREND.types.indexOf(a.k)-TREND.types.indexOf(b.k));
   const lead=[...groupBy(rows.filter(r=>r[I.s_lead]),r=>r[I.s_lead])].map(([k,v])=>({k,n:v.length,win:pct(v.filter(r=>r[I.s_win]).length,v.length),top3:pct(v.filter(r=>r[I.s_top3]).length,v.length),tsu:pct(v.filter(r=>r[I.tsu]).length,v.length),man:pct(v.filter(r=>r[I.man]).length,v.length)})).sort((a,b)=>TREND.leaders.indexOf(a.k)-TREND.leaders.indexOf(b.k));
   const bycat=[...groupBy(rows,r=>r[I.cat]+"|"+r[I.type])].map(([k,v])=>({cat:k.split("|")[0],type:k.split("|")[1],n:v.length,tsu:pct(v.filter(r=>r[I.tsu]).length,v.length),man:pct(v.filter(r=>r[I.man]).length,v.length),tri:med(v.map(r=>r[I.tri]))})).filter(x=>x.n>=5).sort((a,b)=>TREND.categories.indexOf(a.cat)-TREND.categories.indexOf(b.cat)||b.n-a.n);
-  return {sum,s_table,hon:mk("hon"),tai:mk("tai"),hon_by_s,low,kim,lead,bycat};}
+  const ids=new Set(rows.map(r=>r.__i));const L=TREND.lix;const lr=TREND.lrows.filter(l=>ids.has(l[L.race]));
+  const feat=src=>[["同県あり","same",1],["同県なし","same",0],["地元あり","local",1],["地元なし","local",0],["番手が自力","jiriki",1],["番手が自力でない","jiriki",0]].map(([k,f,v])=>{const g=src.filter(l=>l[L[f]]===v);const m=g.length;
+    return {k,n:m,win:pct(g.filter(l=>l[L.win]).length,m),top3:pct(g.filter(l=>l[L.top3]).length,m),l12:pct(g.filter(l=>l[L.l12]).length,m),bwin:pct(g.filter(l=>l[L.bwin]).length,m)}}).filter(r=>r.n>=5);
+  return {sum,s_table,hon:mk("hon"),tai:mk("tai"),hon_by_s,low,kim,lead,bycat,feat:{all:feat(lr),s:feat(lr.filter(l=>l[L.s]))}};}
 const tbl=(head,rows)=>`<div class="tw"><table><thead><tr>${head.map(x=>`<th>${x}</th>`).join("")}</tr></thead><tbody>${rows.join("")||`<tr><td class="muted" colspan="${head.length}">5件以上ある組み合わせがありません</td></tr>`}</tbody></table></div>`;
 const trow=(label,cells)=>`<tr>${label.map(x=>`<td>${x}</td>`).join("")}${cells.map(c=>`<td class="n">${c}</td>`).join("")}</tr>`;
 function statsHTML(S){
-  let h=`<div class="card"><h2>Sを取ったラインと結果</h2>${tbl(["区分","Sライン","件数","1着","3着内","突っ張り","万車券","3連単中央値"],S.s_table.map(r=>trow([esc(r.type),esc(r.s)],[r.n,pc(r.win),pc(r.top3),pc(r.tsu),pc(r.man),yen(r.tri)])))}</div>`;
-  h+=`<div class="card"><h2>Sラインの先頭タイプ</h2>${tbl(["先頭タイプ","件数","Sライン1着","3着内","突っ張り","万車券"],S.lead.map(r=>trow([esc(r.k)],[r.n,pc(r.win),pc(r.top3),pc(r.tsu),pc(r.man)])))}<div class="muted">netkeirinの直近4か月のH・B回数から判定。値を取り込み済みのレースだけが対象です</div></div>`;
+  let h=`<div class="card"><h2>Sを取ったラインと結果</h2>${tbl(["区分","Sライン","件数","1着","3着内","S→主導権","万車券","3連単中央値"],S.s_table.map(r=>trow([esc(r.type),esc(r.s)],[r.n,pc(r.win),pc(r.top3),pc(r.tsu),pc(r.man),yen(r.tri)])))}</div>`;
+  h+=`<div class="card"><h2>Sラインの先頭タイプ</h2>${tbl(["先頭タイプ","件数","Sライン1着","3着内","S→主導権","万車券"],S.lead.map(r=>trow([esc(r.k)],[r.n,pc(r.win),pc(r.top3),pc(r.tsu),pc(r.man)])))}<div class="muted">netkeirinの直近4か月のH・B回数から判定。値を取り込み済みのレースだけが対象です</div></div>`;
   h+=`<div class="card"><h2>予想印 ◎・○ のライン</h2>${tbl(["","件数","1着","2着内","3着内","全員4着以下","その時の3連単平均"],[["◎ライン",S.hon],["○ライン",S.tai]].filter(x=>x[1]).map(([k,v])=>trow([k],[v.n,pc(v.win),pc(v.top2),pc(v.top3),pc(v.dead),yen(v.deadTri)])))}
     ${tbl(["◎ラインとS","件数","◎ライン1着","3着内","万車券","3連単中央値"],S.hon_by_s.map(r=>trow([r.k],[r.n,pc(r.win),pc(r.top3),pc(r.man),yen(r.tri)])))}</div>`;
+  h+=`<div class="card"><h2>ラインの特徴別の成績（2車以上のライン）</h2>${tbl(["特徴","ライン数","1着","3着内","ライン1-2","番手1着"],S.feat.all.map(r=>trow([r.k],[r.n,pc(r.win),pc(r.top3),pc(r.l12),pc(r.bwin)])))}
+    <h3>Sを取ったラインだけ</h3>${tbl(["特徴","ライン数","1着","3着内","ライン1-2","番手1着"],S.feat.s.map(r=>trow([r.k],[r.n,pc(r.win),pc(r.top3),pc(r.l12),pc(r.bwin)])))}
+    <div class="muted">ライン1-2＝そのラインで1・2着。番手1着＝番手の選手が1着。同県・地元・番手自力は netkeirin の府県・H・B回数を取り込み済みのレースが対象</div></div>`;
   h+=`<div class="card"><h2>競走得点が一番低い選手の着順</h2>${tbl(["位置","件数","1着","3着内","3着内時の3連単平均"],S.low.map(r=>trow([esc(r.k)],[r.n,pc(r.win),pc(r.top3),yen(r.tri)])))}</div>`;
   h+=`<div class="card"><h2>決まり手（1着）</h2>${tbl(["区分","件数","逃","捲","差","マ"],S.kim.map(r=>trow([esc(r.k)],[r.n,pc(r["逃"]),pc(r["捲"]),pc(r["差"]),pc(r["マ"])])))}</div>`;
-  h+=`<div class="card"><h2>種別 × ライン区分</h2>${tbl(["種別","区分","件数","突っ張り","万車券","3連単中央値"],S.bycat.map(r=>trow([esc(r.cat),esc(r.type)],[r.n,pc(r.tsu),pc(r.man),yen(r.tri)])))}</div>`;
+  h+=`<div class="card"><h2>種別 × ライン区分</h2>${tbl(["種別","区分","件数","S→主導権","万車券","3連単中央値"],S.bycat.map(r=>trow([esc(r.cat),esc(r.type)],[r.n,pc(r.tsu),pc(r.man),yen(r.tri)])))}</div>`;
   return h;}
 function sel(id,label,opts,val){return `<label>${label}<select id="${id}">${["すべて",...opts].map(o=>`<option${o===val?" selected":""}>${esc(o)}</option>`).join("")}</select></label>`}
 async function showTrend(){
@@ -384,7 +445,7 @@ async function showVenue(){
     ${memo?`<div class="memo">${esc(memo)}</div>`:`<div class="muted">まだ特徴が書かれていません</div>`}
     <label class="muted">級 <select id="vn-cls">${["男子","S級","A級","チャレンジ"].map(o=>`<option${o===cls?" selected":""}>${o}</option>`).join("")}</select></label>
     <div class="tw"><table><thead><tr><th></th><th>${esc(cur)}（${V.n}）</th><th>${bank}平均（${B.n}）</th></tr></thead><tbody>
-    ${cmp("Sライン3着内","s_top3")}${cmp("Sライン1着","s_win")}${cmp("突っ張り","tsu")}${cmp("逃げ","nige")}${cmp("捲り","makuri")}${cmp("差し","sashi")}${cmp("◎ライン1着","hon")}${cmp("万車券率","man")}${cmp("3連単中央値","tri",yen)}
+    ${cmp("Sライン3着内","s_top3")}${cmp("Sライン1着","s_win")}${cmp("Sラインが主導権","tsu")}${cmp("逃げ","nige")}${cmp("捲り","makuri")}${cmp("差し","sashi")}${cmp("◎ライン1着","hon")}${cmp("万車券率","man")}${cmp("3連単中央値","tri",yen)}
     </tbody></table></div><div class="muted">7車立て。周長の平均との差が±8ポイント以上で色付け${V.n<30?"。この場はまだ件数が少ないので参考値です":""}</div></div>`;
   h+=vr.length?statsHTML(computeStats(vr)):"";
   $("#vn-body").innerHTML=h;
@@ -415,8 +476,9 @@ let qt=null;$("#rq").oninput=()=>{clearTimeout(qt);qt=setTimeout(showRiders,200)
 /* ---------- 起動 ---------- */
 (async()=>{
   try{META=await getJSON("data/meta.json")}catch(e){$("#race").innerHTML=`<div class="card empty">まだページが作られていません</div>`;return}
-  $("#upd").textContent=`${META.updated} 更新・${META.count.toLocaleString()}レース`;
+  $("#upd").textContent=META.pc?`PC版・${(META.count||0).toLocaleString()}レース（${META.last||""}まで）`:`${META.updated} 更新・${META.count.toLocaleString()}レース`;
   await loadNotes();
+  if(META.pc){document.title="F1ライン分析（PC）";showPcBar()}
   const pos=store.get("pos",null);
   if(pos){const di=META.days.indexOf(pos.day);if(di>=0){st.day=di;try{const D=await loadDay(di);const vi=D.venues.findIndex(v=>v.venue===pos.venue);if(vi>=0){st.venue=vi;st.race=pos.race}}catch(e){}}}
   await showToday();route();

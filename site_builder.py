@@ -61,10 +61,52 @@ def _compact_scope(sc: dict, refs: dict) -> dict:
 
 def rider_view(x: "kd.Rider") -> dict:
     n = x.nk or {}
-    return dict(car=x.car, name=x.name, mark=x.mark, score=x.score, pref=x.pref, term=x.term, klass=x.klass,
+    return dict(car=x.car, name=x.name, mark=x.mark, score=x.score, pref=x.pref or n.get("pref", ""),
+                term=x.term or n.get("term"), klass=x.klass,
                 style=x.style, key=an.rider_key(dict(nk=n, name=x.name)),
                 st=[n.get(k) for k in ("s", "h", "b", "nige", "makuri", "sashi", "mark")] if n else None,
                 type=an.leader_type(n) if n else None)
+
+
+def race_item(ds, refs, *, venue, no, cat, category, cls, url, lines, riders: list[dict], exclude_id=None) -> dict:
+    """1レース分（出走表または手入力）をページ用にまとめ、Sの選び方・種別の絞り込みごとに照合する。
+    riders: [{car, name, mark, score, pref, st, type, key, nk}]"""
+    rmap = {}
+    for x in riders:  # 手入力などで nk がないときは表示用の回数（st=[S,H,B,…]）から作る
+        y = dict(x)
+        if not y.get("nk") and y.get("st"):
+            y["nk"] = dict(s=y["st"][0], h=y["st"][1], b=y["st"][2])
+        rmap[x["car"]] = y
+    leaders = {x["car"]: x.get("type") for x in riders if x.get("type")}
+    item = dict(no=no, cat=cat, category=category, cls=cls, url=url, lines=lines, venue=venue,
+                vpref=an.VENUE_PREF.get(venue, ""),
+                type=an.line_type(lines) if lines else None,
+                riders=[{k: v for k, v in x.items() if k != "nk"} for x in riders],
+                tags=[an.line_features(l, rmap, venue) for l in lines])
+    if exclude_id:  # 終わったレース自身は照合に使わない
+        ds = [d for d in ds if d["id"] != exclude_id]
+    if lines and cls != "ガールズ":
+        marks = {x["car"]: x["mark"] for x in riders if x.get("mark")}
+        res = {}
+        for same in (True, False):
+            for s in [None] + list(range(len(lines))):
+                m = an.match(ds, lines, marks, s, category=category, cls=cls, venue=venue,
+                             same_category=same, leaders=leaders)
+                key = ("n" if s is None else str(s)) + ("" if same else "a")
+                res[key] = dict(default=m["default"],
+                                scopes={k: _compact_scope(v, refs) for k, v in m["scopes"].items()})
+        item["res"] = res
+    return item
+
+
+def item_from_race(ds, refs, r: "kd.Race", venue: str) -> dict:
+    riders = []
+    for x in r.riders:
+        v = rider_view(x)
+        v["nk"] = x.nk
+        riders.append(v)
+    return race_item(ds, refs, venue=venue, no=r.race_no, cat=r.category_raw, category=r.category, cls=r.cls,
+                     url=r.url.replace("?pageType=result", ""), lines=r.lines, riders=riders, exclude_id=r.race_id)
 
 
 def build_day(ds: list[dict], d: date, log=print) -> dict:
@@ -84,22 +126,8 @@ def build_day(ds: list[dict], d: date, log=print) -> dict:
                 continue
             if not r:
                 continue
-            leaders = {x.car: an.leader_type(x.nk) for x in r.riders if x.nk}
-            item = dict(no=r.race_no, cat=r.category_raw, category=r.category, cls=r.cls,
-                        url=r.url.replace("?pageType=result", ""), lines=r.lines,
-                        type=an.line_type(r.lines) if r.lines else None,
-                        riders=[rider_view(x) for x in r.riders])
-            if r.lines and r.cls != "ガールズ":
-                marks = {x.car: x.mark for x in r.riders if x.mark}
-                res = {}
-                for same in (True, False):
-                    for s in [None] + list(range(len(r.lines))):
-                        m = an.match(ds, r.lines, marks, s, category=r.category, cls=r.cls, venue=r.venue,
-                                     same_category=same, leaders=leaders)
-                        key = ("n" if s is None else str(s)) + ("" if same else "a")
-                        res[key] = dict(default=m["default"],
-                                        scopes={k: _compact_scope(v, refs) for k, v in m["scopes"].items()})
-                item["res"] = res
+            item = item_from_race(ds, refs, r, md.venue)
+            item["rid"], item["slug"] = rid, md.venue_slug
             races.append(item)
         if races:
             venues.append(dict(venue=md.venue, bank=an.bank_of(md.venue), races=races))
@@ -125,7 +153,13 @@ def trend_rows(ds: list[dict]) -> dict:
                       (f"{low['line_mark']}ライン" if low["line_mark"] != "無" else "印なしライン") + "の" + low["pos"],
                       low["rank"]] if low and low["rank"] is not None else None,
                      d["s_leader"]])
-    return dict(cols=cols, rows=rows, banks=an.BANKS, types=an.LINE_TYPES, leaders=an.LEADER_TYPES,
+    # ラインの特徴別の成績用：2車以上のライン1本1行
+    lcols = ["race", "size", "s", "win", "top3", "l12", "bwin", "same", "local", "jiriki"]
+    b = lambda v: None if v is None else int(v)
+    lrows = [[i, l["size"], int(l["is_s"]), int(l["win"]), int(l["top3"]), int(l["line12"]), int(l["bante_win"]),
+              b(l["same"]), b(l["local"]), b(l["jiriki"])]
+             for i, d in enumerate(ds) for l in d["L"] if l["size"] >= 2]
+    return dict(cols=cols, rows=rows, lcols=lcols, lrows=lrows, banks=an.BANKS, types=an.LINE_TYPES, leaders=an.LEADER_TYPES,
                 categories=kd.CATEGORY_ORDER,
                 venues=sorted({d["venue"] for d in ds}, key=lambda v: (an.BANKS.index(an.bank_of(v)), v)),
                 bank333=sorted(an.BANK_333), bank500=sorted(an.BANK_500))

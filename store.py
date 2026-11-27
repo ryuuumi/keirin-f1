@@ -101,7 +101,8 @@ def enrich_missing(con, deadline=None, log=print) -> set[str]:
     """netkeirin の値がまだないレースに足す（新しい順）。足した日の集合を返す。"""
     import time as _t
     import nk_scraper as nk
-    todo = [r for r in load_races(con) if not r.get("nk_checked") and not any(x.get("nk") for x in r["riders"])]
+    # nk_v=2 … 府県・期別まで取り込み済み
+    todo = [r for r in load_races(con) if r.get("nk_v") != 2 and not any((x.get("nk") or {}).get("pref") for x in r["riders"])]
     todo.sort(key=lambda r: r["date"], reverse=True)
     days = set()
     done = 0

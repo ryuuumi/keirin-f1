@@ -6,5 +6,7 @@ if not exist .venv (
   py -3 -m venv .venv || python -m venv .venv
   .venv\Scripts\python -m pip install -q -r requirements.txt
 )
-.venv\Scripts\python app.py
+.venv\Scripts\python sync.py
+.venv\Scripts\python -m pip install -q -r requirements.txt
+.venv\Scripts\python pc_app.py
 pause

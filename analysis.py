@@ -56,6 +56,42 @@ def line_type(lines: list[list[int]]) -> str:
     return "超コマ切れ"
 
 
+# 競輪場の所在県（「地元」の判定に使う）
+VENUE_PREF = {
+    "函館": "北海道", "青森": "青森", "いわき平": "福島", "弥彦": "新潟", "前橋": "群馬", "取手": "茨城",
+    "宇都宮": "栃木", "大宮": "埼玉", "西武園": "埼玉", "京王閣": "東京", "立川": "東京", "松戸": "千葉",
+    "千葉": "千葉", "川崎": "神奈川", "平塚": "神奈川", "小田原": "神奈川", "伊東": "静岡", "静岡": "静岡",
+    "名古屋": "愛知", "豊橋": "愛知", "岐阜": "岐阜", "大垣": "岐阜", "富山": "富山", "松阪": "三重",
+    "四日市": "三重", "福井": "福井", "奈良": "奈良", "向日町": "京都", "和歌山": "和歌山", "岸和田": "大阪",
+    "玉野": "岡山", "広島": "広島", "防府": "山口", "高松": "香川", "小松島": "徳島", "高知": "高知",
+    "松山": "愛媛", "小倉": "福岡", "久留米": "福岡", "武雄": "佐賀", "佐世保": "長崎", "別府": "大分",
+    "熊本": "熊本",
+}
+
+
+def rider_pref(r: dict) -> str:
+    return r.get("pref") or (r.get("nk") or {}).get("pref") or ""
+
+
+def is_jiriki(nk: dict | None) -> bool | None:
+    """自力選手か：直近4か月で H か B を2回以上"""
+    if not nk:
+        return None
+    return nk.get("h", 0) + nk.get("b", 0) >= 2
+
+
+def line_features(cars: list[int], riders: dict, venue: str) -> dict:
+    """ラインの特徴：同県（同じ府県が2人以上）・地元（開催場の県の選手がいる）・番手が自力"""
+    prefs = [rider_pref(riders[c]) for c in cars if c in riders]
+    known = [p for p in prefs if p]
+    vp = VENUE_PREF.get(venue)
+    return dict(
+        same=None if len(known) < 2 else len(known) != len(set(known)),
+        local=None if not known else (vp in known),
+        jiriki=is_jiriki(riders[cars[1]].get("nk")) if len(cars) >= 2 and cars[1] in riders else None,
+    )
+
+
 LINE_TYPES = ["三分戦", "二分戦(4-3)", "二分戦(3-3-1)", "二分戦", "二分戦コマ切れ", "その他", "超コマ切れ"]
 LEADER_TYPES = ["先行型", "先行型(叩かれ)", "捲り型", "自在型", "追込型"]
 
@@ -134,6 +170,9 @@ def derive(race: dict) -> dict | None:
             key_nos=line_key(len(cars), marks, False),
             key_size=f"{size_bucket(len(cars))}{'S' if is_s else ''}",
             leader=leader_type(riders[cars[0]].get("nk")) if len(cars) >= 1 else None,
+            **line_features(cars, riders, race["venue"]),
+            bante_win=len(cars) >= 2 and bool(top) and top[0] == cars[1],
+            line12=len(top) >= 2 and top[0] in cars and top[1] in cars,
             label=line_label(len(cars), marks, is_s),
             is_s=is_s, is_b=i == b_line,
             win=bool(top) and top[0] in cars,
@@ -159,7 +198,7 @@ def derive(race: dict) -> dict | None:
     if b_line is None:
         lead = "主導権不明"
     elif b_line == s_line:
-        lead = "Sライン突っ張り"
+        lead = "Sラインが主導権"
     else:
         lead = f"{L[b_line]['label']}が主導権"
     if w is None:
@@ -256,7 +295,7 @@ def avg(xs):
 
 
 def link(d):
-    return dict(id=d["id"], cat=f"{d['cls']}{d['category']}", url=d["url"], text=f"{d['venue']} {d['date'][5:].replace('-', '/')} {d['race_no']}R",
+    return dict(id=d["id"], cat=f"{d['cls']}{d['category']}", url=d["url"], text=f"{d['venue']} {d['date'][2:].replace('-', '/')} {d['race_no']}R",
                 video=digest_url(d), L=d["lines"], cars=d["cars"],
                 lines=d["line_str"], tri=d["tri_yen"], combo=d["tri_combo"])
 
